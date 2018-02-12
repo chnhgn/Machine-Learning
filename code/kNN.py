@@ -2,6 +2,7 @@
 import pandas as pd
 import os, sys
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 class kNN(object):
@@ -83,13 +84,67 @@ class kNN(object):
     
         return str("%.4f" % (count/total))
     
+    def plot(self, file_name):
+        ds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+        file_dir = os.path.join(ds_path, file_name)
+        
+        # Only need columns playMin, playHeigh, playWeight and playFG
+        pre_data = pd.read_csv(file_dir, usecols=[20,21,32])
+        arr = np.array(pre_data)
+             
+        plt.figure(figsize=(8, 5), dpi=80)
+        axes = plt.subplot(111)
+         
+        type1_x = []
+        type1_y = []
+        type2_x = []
+        type2_y = []
+        type3_x = []
+        type3_y = []
+        type4_x = []
+        type4_y = []
+        type5_x = []
+        type5_y = []
+         
+        for item in arr:
+            if item[2] == 'PF':
+                type1_x.append(item[0])
+                type1_y.append(item[1])
+            elif item[2] == 'SF':
+                type2_x.append(item[0])
+                type2_y.append(item[1])  
+            elif item[2] == 'PG':
+                type3_x.append(item[0])
+                type3_y.append(item[1])
+            elif item[2] == 'SG':
+                type4_x.append(item[0])
+                type4_y.append(item[1]) 
+            elif item[2] == 'C':
+                type5_x.append(item[0])
+                type5_y.append(item[1])           
+         
+        type1 = axes.scatter(type1_x, type1_y, s=20, c='red')
+        type2 = axes.scatter(type2_x, type2_y, s=30, c='green')
+        type3 = axes.scatter(type3_x, type3_y, s=40, c='blue')
+        type4 = axes.scatter(type4_x, type4_y, s=50, c='yellow')
+        type5 = axes.scatter(type5_x, type5_y, s=60, c='black')
+         
+        plt.xlabel('Height')
+        plt.ylabel('Weight')
+        axes.legend((type1, type2, type3, type4, type5), ('PF', 'SF', 'PG', 'SG', 'C'), loc=2)
+         
+        plt.show()
+    
     
     
     
     
 if __name__ == '__main__':
     
-    knn = kNN()    
+    knn = kNN()   
+    # Plot the trend for training data
+    knn.plot("2016-17_playerBoxScore.csv") 
+    
     res = knn.classify_test("2016-17_playerBoxScore.csv")
     rate = knn.accurate_rate(res)
     print("The accurate rate is %s" % rate)
