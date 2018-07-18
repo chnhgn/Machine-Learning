@@ -59,7 +59,7 @@ class split(object):
             drop_lines = before_lines - after_lines
             print('Removed the duplicated lines %s in %s' % (str(drop_lines), f))
             
-            df.to_csv(os.path.join(self.target_dir, f), encoding='utf-8')
+            df.to_csv(os.path.join(self.target_dir, f), encoding='utf-8', index=False)
             
     
 
