@@ -46,7 +46,21 @@ class split(object):
         part1.to_csv(os.path.join(self.target_dir, ds_name+'_part1.csv'), encoding='utf-8')
         part2.to_csv(os.path.join(self.target_dir, ds_name+'_part2.csv'), encoding='utf-8')
 
-    
+    def remove_dup(self):
+        files = os.listdir(self.target_dir)
+        for f in files:
+            df = pd.read_csv(os.path.join(self.target_dir, f), dtype=str, keep_default_na=False)
+            before_lines = len(df)     # Line number before removing
+            if 'temp_date' in df.columns:
+                del df['temp_date']
+                
+            df.drop_duplicates(inplace=True)
+            after_lines = len(df)
+            drop_lines = before_lines - after_lines
+            print('Removed the duplicated lines %s in %s' % (str(drop_lines), f))
+            
+            df.to_csv(os.path.join(self.target_dir, f), encoding='utf-8')
+            
     
 
 
@@ -57,9 +71,10 @@ if __name__ == '__main__':
               'C:\\scnguh\\datamining\\o2o\\ccf_offline_stage1_train\\ccf_offline_stage1_train.csv',
               'C:\\scnguh\\datamining\\o2o')
     
-    sp.split('offline', '2016-5-15')
-    sp.split('online', '2016-5-15')
+    sp.split('offline', '2016-4-15')
+    sp.split('online', '2016-4-15')
     
+    sp.remove_dup()
     
     
     
