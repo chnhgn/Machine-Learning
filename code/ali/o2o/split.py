@@ -32,7 +32,10 @@ class split(object):
         df2 = df[df.Date_received == 'null']
         df2['temp_date'] = df2['Date']
         
-        df = pd.concat([df1, df2])
+        df3 = df[(df.Date_received != 'null') & (df.Date == 'null')]
+        df3['temp_date'] = df3['Date_received']
+        
+        df = pd.concat([df1, df2, df3])
         
         df['temp_date'] = pd.to_datetime(df.temp_date)
 #         print(df.dtypes)
@@ -42,7 +45,7 @@ class split(object):
         
         part1 = df.truncate(after=slice_date, copy=True)
         part2 = df.truncate(before=delay_day, copy=True)
-                
+                 
         part1.to_csv(os.path.join(self.target_dir, ds_name+'_part1.csv'), encoding='utf-8')
         part2.to_csv(os.path.join(self.target_dir, ds_name+'_part2.csv'), encoding='utf-8')
 
@@ -73,7 +76,7 @@ if __name__ == '__main__':
     
     sp.split('offline', '2016-4-15')
     sp.split('online', '2016-4-15')
-    
+     
     sp.remove_dup()
     
     
