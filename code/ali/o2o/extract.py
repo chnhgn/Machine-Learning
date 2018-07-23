@@ -8,11 +8,17 @@ import numpy as np
 class extract(object):
     
     def __init__(self,data_path):
-        self.df_offline = pd.read_csv(os.path.join(os.path.join(data_path, 'temp'), 'offline_part1.csv'),
+        self.split_data_dir = os.path.join(data_path, 'temp')   # Save split data
+        
+        self.feature_data_dir = os.path.join(data_path, 'tmp_features')     # Save feature data
+        if os.path.exists(self.feature_data_dir) is not True:
+            os.mkdir(self.feature_data_dir)
+        
+        self.df_offline = pd.read_csv(os.path.join(self.split_data_dir, 'offline_part1.csv'),
                                   dtype=str, 
                                   keep_default_na=False)
         
-        self.df_online = pd.read_csv(os.path.join(os.path.join(data_path, 'temp'), 'online_part1.csv'),
+        self.df_online = pd.read_csv(os.path.join(self.split_data_dir, 'online_part1.csv'),
                                   dtype=str, 
                                   keep_default_na=False)
     
@@ -38,6 +44,7 @@ class extract(object):
         df_feature11_6.drop_duplicates(inplace=True)
         df_feature11 = pd.merge(df_feature11_6, df_feature11_5, how='left', on=['User_id'])
         df_feature11.fillna(0, inplace=True)
+        df_feature11.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 10]
         df_feature10_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['User_id', 'Coupon_id']]
@@ -58,6 +65,7 @@ class extract(object):
         
         df_feature10 = pd.merge(df_feature10_4, df_feature10_3, how='left', on=['User_id'])
         df_feature10.fillna(0, inplace=True)
+        df_feature10.set_index(['User_id'], inplace=True)     # Merge use
 
         # [Feature 9]
         df_feature9_1 = self.df_offline[['Coupon_id']]
@@ -73,6 +81,7 @@ class extract(object):
         df_feature9_3.drop_duplicates(inplace=True)
         df_feature9 = pd.merge(df_feature9_3, df_feature9_2, how='left', on=['User_id'])
         df_feature9.fillna(0, inplace=True)
+        df_feature9.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 8]
         df_feature8_1 = self.df_offline[['Merchant_id']]
@@ -88,6 +97,7 @@ class extract(object):
         df_feature8_3.drop_duplicates(inplace=True)
         df_feature8 = pd.merge(df_feature8_3, df_feature8_2, how='left', on=['User_id'])
         df_feature8.fillna(0, inplace=True)
+        df_feature8.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 7]
         df_feature7_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['User_id', 'Discount_rate']]
@@ -108,6 +118,7 @@ class extract(object):
         df_feature7_5.drop_duplicates(inplace=True)
         df_feature7 = pd.merge(df_feature7_5, df_feature7, how='left', on=['User_id'])
         df_feature7.fillna(0, inplace=True)
+        df_feature7.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 6]
         df_feature6_1 = self.df_offline[(self.df_offline.Discount_rate != 'null')][['User_id', 'Discount_rate', 'Date']]
@@ -133,6 +144,7 @@ class extract(object):
         df_feature6.fillna(0, inplace=True)
         df_feature6['x:y_in_all_cp_used_rate'] = df_feature6.apply(lambda x:x[1]/x[2] if x[2] != 0 else 0, axis=1)
         df_feature6 = df_feature6[['User_id', 'x:y_in_all_cp_used_rate']]
+        df_feature6.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 5]
         df_feature5_1 = self.df_offline[(self.df_offline.Discount_rate != 'null')][['User_id', 'Discount_rate', 'Date']]
@@ -154,6 +166,7 @@ class extract(object):
         df_feature5.iloc[:,-2] = df_feature5.all_cp_num.astype('float')
         df_feature5['x:y_cp_used_rate'] = df_feature5.apply(lambda x:x[-1]/x[-2] if x[-2] != 0 else 0, axis=1)
         df_feature5.drop(df_feature5.columns[[1,2]], axis=1, inplace=True)
+        df_feature5.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 4]
         df_feature4_1 = self.df_offline.groupby(['User_id'], as_index=False)['Merchant_id'].count()
@@ -166,6 +179,7 @@ class extract(object):
         df_feature4.iloc[:,-2] = df_feature4.total.astype('float')
         df_feature4['used_rate'] = df_feature4.apply(lambda x:x[2]/x[1], axis=1)
         df_feature4.drop(['total','used'], axis=1, inplace=True)
+        df_feature4.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 3]
         df_feature3_1 = self.df_offline[(self.df_offline.Date_received != 'null') & (self.df_offline.Date != 'null')][['User_id', 'Date']]
@@ -176,6 +190,7 @@ class extract(object):
         df_feature3 = pd.merge(df_feature3, df_feature3_1, how='left', on=['User_id'])
         df_feature3.fillna(0, inplace=True)
         df_feature3.iloc[:,-1] = df_feature3.get_cp_used.astype('int')
+        df_feature3.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 2]
         df_feature2_1 = self.df_offline[(self.df_offline.Date_received != 'null') & (self.df_offline.Date == 'null')][['User_id', 'Date_received']]
@@ -193,12 +208,21 @@ class extract(object):
         df_feature2 = pd.concat([df_feature2_1, df_feature2_2, df_feature2_3])
         df_feature2.iloc[:,-1] = df_feature2.get_cp_not_use.astype('int')
         df_feature2 = df_feature2.groupby(['User_id'], as_index=False)['get_cp_not_use'].sum()
+        df_feature2.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 1]
         df_feature1 = self.df_offline[['User_id', 'Coupon_id']]
         df_feature1['Coupon_id'] = df_feature1.Coupon_id.apply(lambda x : None if x == 'null' else x)
         df_feature1 = df_feature1.groupby(['User_id'], as_index=False)['Coupon_id'].count()
         df_feature1.rename(columns={'Coupon_id':'get_cp_num'}, inplace=True)
+        df_feature1.set_index(['User_id'], inplace=True)     # Merge use
+        
+        # Merge all single features
+        df_ft = pd.concat([df_feature1, df_feature2, df_feature3, df_feature4, df_feature5, df_feature6,
+                            df_feature7, df_feature8, df_feature9, df_feature10, df_feature11], axis=1)
+        df_ft.reset_index(inplace=True)
+        df_ft.rename(columns={'index':'User_id'}, inplace=True)
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'))
         
         # Verify part to make sure there is no data lost
         total_data_number2 = len(self.df_offline)
@@ -223,6 +247,7 @@ class extract(object):
         df_ft8.fillna(0, inplace=True)
         df_ft8['offline_cp_record_in_online_and_offline'] = df_ft8.apply(lambda x:x[1]/(x[1]+x[2]) if x[1]+x[2] != 0 else 0, axis=1)
         df_ft8 = df_ft8[['User_id', 'offline_cp_record_in_online_and_offline']]
+        df_ft8.set_index(['User_id'], inplace=True)     # Merge use
         
         # [feature 9]
         df_ft7_1 = self.df_offline[(self.df_offline.Date != 'null') & (self.df_offline.Coupon_id != 'null')][['User_id', 'Date']]
@@ -238,6 +263,7 @@ class extract(object):
         df_ft7.fillna(0, inplace=True)
         df_ft7['offline_cp_used_num_in_online_and_offline'] = df_ft7.apply(lambda x:x[1]/(x[1]+x[2]) if x[1]+x[2] != 0 else 0, axis=1)
         df_ft7 = df_ft7[['User_id', 'offline_cp_used_num_in_online_and_offline']]
+        df_ft7.set_index(['User_id'], inplace=True)     # Merge use
         
         # [feature 8]
         df_ft6_1 = self.df_offline[(self.df_offline.Date == 'null')][['User_id', 'Date']]
@@ -253,6 +279,7 @@ class extract(object):
         df_ft6.fillna(0, inplace=True)
         df_ft6['offline_no_consume_num_in_online_and_offline'] = df_ft6.apply(lambda x:x[1]/(x[1]+x[2]) if x[1]+x[2] != 0 else 0, axis=1)
         df_ft6 = df_ft6[['User_id', 'offline_no_consume_num_in_online_and_offline']]
+        df_ft6.set_index(['User_id'], inplace=True)     # Merge use
         
         
         # [feature 7]
@@ -271,6 +298,7 @@ class extract(object):
         df_ft5['Date'] = df_ft5.Date.astype('float')
         df_ft5['online_cp_used_rate'] = df_ft5.apply(lambda x:x[-1]/x[-2] if x[-2] != 0 else 0, axis=1)
         df_ft5 = df_ft5[['User_id', 'online_cp_used_rate']]
+        df_ft5.set_index(['User_id'], inplace=True)     # Merge use
         
         # [feature 6]
         df_ft4_1 = self.df_online[(self.df_online.Coupon_id != 'null') & (self.df_online.Date != 'null')][['User_id', 'Date']]
@@ -281,6 +309,7 @@ class extract(object):
         
         df_ft4 = pd.merge(df_ft4_2, df_ft4_1, how='left', on=['User_id'])
         df_ft4.fillna(0, inplace=True)
+        df_ft4.set_index(['User_id'], inplace=True)     # Merge use
         
         # [feature 5]
         df_ft3_1 = self.df_online[(self.df_online.Action.isin(['0', '2']))][['User_id', 'Action']]
@@ -290,6 +319,7 @@ class extract(object):
         df_ft3_2 = self.df_online[['User_id']].drop_duplicates()
         df_ft3 = pd.merge(df_ft3_2, df_ft3_1, how='left', on=['User_id'])
         df_ft3.fillna(0, inplace=True)
+        df_ft3.set_index(['User_id'], inplace=True)     # Merge use
         
         # [feature 2,3,4]
         df_ft2_1 = self.df_online[['User_id', 'Action']]
@@ -324,11 +354,174 @@ class extract(object):
         df_ft2['online_buy_action_rate'] = df_ft2.apply(lambda x:x[3]/x[1] if x[1] != 0 else 0, axis=1)
         df_ft2['online_get_cp_action_rate'] = df_ft2.apply(lambda x:x[4]/x[1] if x[1] != 0 else 0, axis=1)
         df_ft2 = df_ft2[['User_id', 'online_hit_action_rate', 'online_buy_action_rate', 'online_get_cp_action_rate']]
+        df_ft2.set_index(['User_id'], inplace=True)     # Merge use
         
         # [Feature 1]
         df_ft1_1 = self.df_online[['User_id', 'Action']]
         df_ft1 = df_ft1_1.groupby(['User_id'], as_index=False)['Action'].count()
         df_ft1.rename(columns={'Action':'online_action_times'}, inplace=True)
+        df_ft1.set_index(['User_id'], inplace=True)     # Merge use
+        
+        # Merge all single features
+        df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8], axis=1)
+        df_ft.reset_index(inplace=True)
+        df_ft.rename(columns={'index':'User_id'}, inplace=True)
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'))
+        
+    def merchant_features(self):
+        # All merchants
+        df_merchant = self.df_offline[['Merchant_id']].drop_duplicates()
+
+        # [feature 10]
+        df_ft10_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Distance']]
+        df_ft10_1['Distance'] = df_ft10_1.Distance.apply(lambda x : '10' if x == 'null' else x)
+        df_ft10_1['Distance'] = df_ft10_1.Distance.astype('float')
+        df_ft10_2 = df_ft10_1.groupby(['Merchant_id'], as_index=False)['Distance'].max()
+        df_ft10_2.rename(columns={'Distance':'cp_used_max_distance_in_merchant'}, inplace=True)
+        
+        df_ft10_3 = df_ft10_1.groupby(['Merchant_id'], as_index=False)['Distance'].min()
+        df_ft10_3.rename(columns={'Distance':'cp_used_min_distance_in_merchant'}, inplace=True)
+        
+        df_ft10_4 = df_ft10_1.groupby(['Merchant_id'], as_index=False)['Distance'].mean()
+        df_ft10_4.rename(columns={'Distance':'cp_used_mean_distance_in_merchant'}, inplace=True)
+        
+        df_ft10 = pd.merge(pd.merge(df_ft10_2, df_ft10_3), df_ft10_4)
+        df_ft10 = pd.merge(df_merchant, df_ft10, how='left', on=['Merchant_id'])
+        df_ft10.fillna(10, inplace=True)
+        
+        df_ft10.set_index(['Merchant_id'], inplace=True)     # Merge use
+
+        # [feature 9]
+        df_ft9_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Date_received', 'Date']]
+        df_ft9_1['Date_received'] = pd.to_datetime(df_ft9_1.Date_received)
+        df_ft9_1['Date'] = pd.to_datetime(df_ft9_1.Date)
+        df_ft9_1['cp_used_duration'] = df_ft9_1.apply(lambda x : x[2] - x[1], axis=1)
+        df_ft9_1['cp_used_duration'] = df_ft9_1.cp_used_duration.apply(lambda x: float(x.days))     # Convert timedelta to float
+        df_ft9_1 = df_ft9_1[['Merchant_id', 'cp_used_duration']]
+        df_ft9_1 = df_ft9_1.groupby(['Merchant_id'], as_index=False)['cp_used_duration'].mean()
+        
+        df_ft9 = pd.merge(df_merchant, df_ft9_1, how='left', on=['Merchant_id'])
+        df_ft9.fillna(0, inplace=True)
+        df_ft9.rename(columns={'cp_used_duration':'cp_used_duration_in_merchant'}, inplace=True)
+        
+        df_ft9.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 6]
+        df_ft6_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft6_1 = df_ft6_1.drop_duplicates()
+        df_ft6_1 = df_ft6_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        df_ft6 = pd.merge(df_merchant, df_ft6_1, how='left', on=['Merchant_id'])
+        df_ft6.fillna(0, inplace=True)
+        df_ft6.rename(columns={'Coupon_id':'cp_used_types_in_merchant'}, inplace=True)
+        
+        df_ft6.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 7]
+        df_ft7_1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft7_1 = df_ft7_1.drop_duplicates()
+        df_ft7_1 = df_ft7_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        df_ft7_1.rename(columns={'Coupon_id':'cp_types_in_merchant'}, inplace=True)
+        
+        df_ft7 = pd.merge(df_ft6, df_ft7_1, how='left', on=['Merchant_id'])
+        df_ft7.fillna(0, inplace=True)
+        df_ft7['cp_used_types_outof_all_types_in_merchant'] = df_ft7.apply(lambda x : x[1]/x[2] if x[2] != 0 else 0, axis=1)
+        df_ft7 = df_ft7[['Merchant_id', 'cp_used_types_outof_all_types_in_merchant']]
+        
+        df_ft7.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 5]
+        df_ft5_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'User_id']]
+        df_ft5_1 = df_ft5_1.drop_duplicates()
+        df_ft5_1 = df_ft5_1.groupby(['Merchant_id'], as_index=False)['User_id'].count()
+        
+        df_ft5_2 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft5_2 = df_ft5_2.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        
+        df_ft5_3 = pd.merge(pd.merge(df_merchant, df_ft5_1, how='left', on=['Merchant_id']), df_ft5_2, how='left', on=['Merchant_id'])
+        df_ft5_3.fillna(0, inplace=True)
+        
+        df_ft5_3['cp_used_num_per_user_in_merchant'] = df_ft5_3.apply(lambda x : x[2]/x[1] if x[1] != 0 else 0, axis=1)
+        df_ft5 = df_ft5_3[['Merchant_id', 'cp_used_num_per_user_in_merchant']]
+        
+        df_ft5.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 4]
+        df_feature4_1 = self.df_offline[(self.df_offline.Discount_rate != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Discount_rate']]
+        df_feature4_1.iloc[:,-1] = df_feature4_1.Discount_rate.apply(lambda x:x if ':' not in x 
+                                                                     else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
+        df_feature4_1.iloc[:,-1] = df_feature4_1.Discount_rate.astype('float')
+        df_feature4_2 = df_feature4_1.groupby(['Merchant_id'], as_index=False)['Discount_rate'].mean()
+        df_feature4_2.rename(columns={'Discount_rate':'cp_used_discount_mean_in_merchant'}, inplace=True)
+        
+        df_feature4_3 = df_feature4_1.groupby(['Merchant_id'], as_index=False)['Discount_rate'].max()
+        df_feature4_3.rename(columns={'Discount_rate':'cp_used_discount_max_in_merchant'}, inplace=True)
+        
+        df_feature4_4 = df_feature4_1.groupby(['Merchant_id'], as_index=False)['Discount_rate'].min()
+        df_feature4_4.rename(columns={'Discount_rate':'cp_used_discount_min_in_merchant'}, inplace=True)
+        
+        df_feature4 = pd.merge(df_feature4_2, df_feature4_3, on=['Merchant_id'])
+        df_feature4 = pd.merge(df_feature4, df_feature4_4, on=['Merchant_id'])
+        
+        df_ft4 = pd.merge(df_merchant, df_feature4, how='left', on=['Merchant_id'])
+        df_ft4.fillna(0, inplace=True)
+        
+        df_ft4.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 3]
+        df_ft3_1 = self.df_offline[(self.df_offline.Coupon_id != 'null') & (self.df_offline.Date != 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft3_1 = df_ft3_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        df_ft3_1.rename(columns={'Coupon_id':'cp_used_num_in_merchant'}, inplace=True)
+        df_ft3 = pd.merge(df_merchant, df_ft3_1, how='left', on=['Merchant_id'])
+        df_ft3.fillna(0, inplace=True)
+        df_ft3_copy = df_ft3
+        df_ft3.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 8]
+        df_ft8_1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft8_1 = df_ft8_1.drop_duplicates()
+        df_ft8_1 = df_ft8_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        
+        df_ft8 = pd.merge(df_ft3, df_ft8_1, how='left', on=['Merchant_id'])
+        df_ft8.fillna(0, inplace=True)
+        df_ft8['cp_used_num_per_type_in_merchant'] = df_ft8.apply(lambda x : x[1]/x[2] if x[2] != 0 else 0, axis=1)
+        df_ft8 = df_ft8[['Merchant_id', 'cp_used_num_per_type_in_merchant']]
+        
+        df_ft8.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 2]
+        df_ft2_1 = self.df_offline[(self.df_offline.Coupon_id != 'null') & (self.df_offline.Date == 'null')][['Merchant_id', 'Coupon_id']]
+        df_ft2_1 = df_ft2_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        df_ft2_1.rename(columns={'Coupon_id':'cp_not_used_num_in_merchant'}, inplace=True)
+        df_ft2 = pd.merge(df_merchant, df_ft2_1, how='left', on=['Merchant_id'])
+        df_ft2.fillna(0, inplace=True)
+        
+        df_ft2.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 1]
+        df_ft1_1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['Merchant_id', 'Coupon_id']] 
+        df_ft1_1 = df_ft1_1.groupby(['Merchant_id'], as_index=False)['Coupon_id'].count()
+        df_ft1_1.rename(columns={'Coupon_id':'picked_cp_num_from_merchant'}, inplace=True)
+        df_ft1 = pd.merge(df_merchant, df_ft1_1, how='left', on=['Merchant_id'])
+        df_ft1.fillna(0, inplace=True)
+        df_ft1_copy = df_ft1
+        df_ft1.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # [feature 11]
+        df_ft11 = pd.merge(df_ft1_copy, df_ft3_copy, how='inner', on=['Merchant_id'])
+        df_ft11.reset_index(inplace=True)
+        df_ft11['cp_used_rate_in_merchant'] = df_ft11.apply(lambda x : x[2]/x[1] if x[1] != 0 else 0, axis=1)
+        df_ft11 = df_ft11[['Merchant_id', 'cp_used_rate_in_merchant']]
+        
+        df_ft11.set_index(['Merchant_id'], inplace=True)     # Merge use
+        
+        # Merge all single features
+        df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8, df_ft9, df_ft10, df_ft11], axis=1)
+        df_ft.reset_index(inplace=True)
+        df_ft.rename(columns={'index':'Merchant_id'}, inplace=True)
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'))
+        
+        
+        
         
         
 
@@ -337,9 +530,12 @@ class extract(object):
 
 if __name__ == '__main__':
     extr = extract('C:\\scnguh\\datamining\\o2o')
-#     extr.user_offline_features()
+    
+    extr.user_offline_features()
+    
     extr.user_online_features()
     
+    extr.merchant_features()
     
     
     
