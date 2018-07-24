@@ -625,11 +625,123 @@ class extract(object):
         df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'))
     
     def coupon_features(self):
-        pass
+        # All coupons
+        df_ft1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['Coupon_id', 'Discount_rate']]
+        df_ft1.drop_duplicates(inplace=True)
         
+        # Coupon type
+        df_ft2 = df_ft1.copy()
+        df_ft2['Discount_rate'] = df_ft2.Discount_rate.apply(lambda x : '1' if ':' in x else '0')
+        df_ft2.rename(columns={'Discount_rate':'cp_type'}, inplace=True)
         
+        # Coupon discount
+        df_ft3 = df_ft1.copy()
+        df_ft3['Discount_rate'] = df_ft3.Discount_rate.apply(lambda x:x if ':' not in x 
+                                        else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
+        df_ft3.rename(columns={'Discount_rate':'cp_discount'}, inplace=True)
         
+        # The minimum consumption for coupon:1
+        df_ft4 = df_ft1.copy()
+        df_ft4['Discount_rate'] = df_ft4.Discount_rate.apply(lambda x : '0' if ':' not in x else (str(x).split(':')[0]))
+        df_ft4.rename(columns={'Discount_rate':'min_consume'}, inplace=True)
         
+        # Coupon frequency
+        df_ft5 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['Coupon_id', 'Discount_rate']]
+        df_ft5 = df_ft5.groupby(['Coupon_id'])['Discount_rate'].count()
+        df_ft5 = pd.DataFrame(df_ft5)
+        df_ft5.reset_index(inplace=True)
+        df_ft5.rename(columns={'Discount_rate':'cp_freq'}, inplace=True)
+        
+        # Coupon totally used number
+        df_ft6_1 = self.df_offline[(self.df_offline.Coupon_id != 'null') & (self.df_offline.Date != 'null')][['Coupon_id', 'Date']]
+        df_ft6_1 = df_ft6_1.groupby(['Coupon_id'])['Date'].count()
+        df_ft6_1 = pd.DataFrame(df_ft6_1)
+        df_ft6_1.reset_index(inplace=True)
+        
+        df_ft6_2 = df_ft1.copy()
+        df_ft6 = pd.merge(df_ft6_2, df_ft6_1, how='left', on=['Coupon_id'])
+        df_ft6.fillna(0, inplace=True)
+        df_ft6.rename(columns={'Date':'cp_total_used_num'}, inplace=True)
+        df_ft6.drop(['Discount_rate'], inplace=True, axis=1)
+        
+        # Coupon totally used rate
+        df_ft7_1 = df_ft5.copy()
+        df_ft7_2 = df_ft6.copy()
+        df_ft7 = pd.merge(df_ft7_1, df_ft7_2)
+        df_ft7['cp_total_used_rate'] = df_ft7.apply(lambda x : x[2]/x[1] if x[1] != 0 else 0, axis=1)
+        df_ft7 = df_ft7[['Coupon_id', 'cp_total_used_rate']]
+        
+        # Coupon average used duration in total
+        df_ft8_1 = self.df_offline[(self.df_offline.Coupon_id != 'null') & (self.df_offline.Date != 'null')][['Coupon_id', 'Date_received', 'Date']]
+        df_ft8_1['Date_received'] = pd.to_datetime(df_ft8_1.Date_received)
+        df_ft8_1['Date'] = pd.to_datetime(df_ft8_1.Date)
+        df_ft8_1['cp_used_duration_total_mean'] = df_ft8_1.apply(lambda x : float((x[2]-x[1]).days), axis=1)
+        df_ft8_1 = df_ft8_1.groupby(['Coupon_id'])['cp_used_duration_total_mean'].mean()
+        df_ft8_1 = pd.DataFrame(df_ft8_1)
+        df_ft8_1.reset_index(inplace=True)
+        
+        df_ft8_2 = df_ft1.copy()
+        df_ft8 = pd.merge(df_ft8_2, df_ft8_1, how='left', on=['Coupon_id'])
+        df_ft8.fillna(0, inplace=True)
+        df_ft8 = df_ft8[['Coupon_id', 'cp_used_duration_total_mean']]
+        
+        # Coupon been received number
+        df_ft9_1 = self.df_offline[(self.df_offline.Date_received != 'null')][['Coupon_id', 'Date_received']]
+        df_ft9 = df_ft9_1.groupby(['Coupon_id'])['Date_received'].count()
+        df_ft9 = pd.DataFrame(df_ft9)
+        df_ft9.rename(columns={'Date_received':'cp_total_received_num'}, inplace=True)
+        df_ft9.reset_index(inplace=True)
+        
+        # Coupon totally used number
+        df_ft10_1 = self.df_offline[(self.df_offline.Date_received != 'null') & (self.df_offline.Date != 'null')][['Coupon_id', 'Date']]
+        df_ft10 = df_ft10_1.groupby(['Coupon_id'])['Date'].count()
+        df_ft10 = pd.DataFrame(df_ft10)
+        df_ft10.rename(columns={'Date':'cp_total_used_num'}, inplace=True)
+        df_ft10.reset_index(inplace=True)
+        df_ft10_2 = df_ft1.copy()
+        df_ft10 = pd.merge(df_ft10_2, df_ft10, how='left', on=['Coupon_id'])
+        df_ft10.fillna(0, inplace=True)
+        df_ft10.drop('Discount_rate', inplace=True, axis=1)
+        
+        # Coupon totally used rate
+        df_ft11_1 = df_ft9.copy()
+        df_ft11_2 = df_ft10.copy()
+        df_ft11 = pd.merge(df_ft11_1, df_ft11_2, how='left', on=['Coupon_id'])
+        df_ft11.fillna(0, inplace=True)
+        df_ft11['cp_total_used_rate'] = df_ft11.apply(lambda x : x[2]/x[1] if x[1] != 0 else 0, axis=1)
+        df_ft11 = df_ft11[['Coupon_id', 'cp_total_used_rate']]
+        
+        # Coupon day of week
+        df_ft12_1 = self.df_offline[(self.df_offline.Date_received != 'null')][['Coupon_id', 'Date_received']]
+        df_ft12_1.drop_duplicates(inplace=True)
+        df_ft12_1['Date_received'] = pd.to_datetime(df_ft12_1.Date_received)
+        df_ft12_1['Date_received'] = df_ft12_1.Date_received.apply(lambda x : x.dayofweek)
+        df_ft12_1.drop_duplicates(inplace=True)
+        df_ft12_1 = df_ft12_1.groupby(['Coupon_id'])['Date_received'].apply(list)
+        df_ft12 = pd.DataFrame(df_ft12_1)
+        df_ft12.reset_index(inplace=True)
+        df_ft12.rename(columns={'Date_received':'cp_received_dayofweek'}, inplace=True)
+        
+        # Coupon day of month
+        df_ft13_1 = self.df_offline[(self.df_offline.Date_received != 'null')][['Coupon_id', 'Date_received']]
+        df_ft13_1.drop_duplicates(inplace=True)
+        df_ft13_1['Date_received'] = pd.to_datetime(df_ft13_1.Date_received)
+        df_ft13_1['Date_received'] = df_ft13_1.Date_received.apply(lambda x : x.days_in_month)
+        df_ft13_1.drop_duplicates(inplace=True)
+        df_ft13_1 = df_ft13_1.groupby(['Coupon_id'])['Date_received'].apply(list)
+        df_ft13 = pd.DataFrame(df_ft13_1)
+        df_ft13.reset_index(inplace=True)
+        df_ft13.rename(columns={'Date_received':'cp_received_dayofmonth'}, inplace=True)
+        
+        # Merge all single features
+        for i in range(2,14):
+            ss = "df_ft%d.set_index(['Coupon_id'], inplace=True)" % i       # Merge use index
+            eval(ss)
+        
+        df_ft = pd.concat([df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8, df_ft9, df_ft10, df_ft11, df_ft12, df_ft13], axis=1)
+        df_ft.reset_index(inplace=True)
+        df_ft.rename(columns={'index':'Coupon_id'}, inplace=True)
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'))
 
 
 
@@ -638,11 +750,11 @@ if __name__ == '__main__':
     extr = extract('C:\\scnguh\\datamining\\o2o')
     
     extr.user_offline_features()
-     
-    extr.user_online_features()
       
+    extr.user_online_features()
+       
     extr.merchant_features()
-    
+     
     extr.user_merchant_features()
     
     extr.coupon_features()
