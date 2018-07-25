@@ -224,7 +224,7 @@ class extract(object):
                             df_feature7, df_feature8, df_feature9, df_feature10, df_feature11], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'User_id'}, inplace=True)
-        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'))
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'), index=False)
         
         # Verify part to make sure there is no data lost
         total_data_number2 = len(self.df_offline)
@@ -368,7 +368,7 @@ class extract(object):
         df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'User_id'}, inplace=True)
-        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'))
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'), index=False)
         
     def merchant_features(self):
         # All merchants
@@ -520,7 +520,7 @@ class extract(object):
         df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8, df_ft9, df_ft10, df_ft11], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'Merchant_id'}, inplace=True)
-        df_ft.to_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'))
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'), index=False)
     
     def user_merchant_features(self):
         # user-merchant
@@ -622,7 +622,7 @@ class extract(object):
         # Merge all single features
         df_ft = pd.concat([df_ft2, df_ft3, df_ft4, df_ft5], axis=1)
         df_ft.reset_index(inplace=True)
-        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'))
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'), index=False)
     
     def coupon_features(self):
         # All coupons
@@ -741,8 +741,57 @@ class extract(object):
         df_ft = pd.concat([df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8, df_ft9, df_ft10, df_ft11, df_ft12, df_ft13], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'Coupon_id'}, inplace=True)
-        df_ft.to_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'))
+        df_ft.to_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'), index=False)
 
+    def integrate_all_features(self):
+        """
+        Merge all the features under self.feature_data_dir to integrate
+        the training data for modeling
+        Order: user -> merchant -> coupon
+        """
+        # Base relationships
+        df1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['User_id', 'Merchant_id', 'Coupon_id']]
+        df1.drop_duplicates(inplace=True)
+        df1.sort_values(by=['User_id'], inplace=True)
+        
+        # Offline user features/online user features
+        offline_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        
+        online_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        user_features = pd.merge(offline_user, online_user, how='left', on=['User_id'])
+        user_features.fillna(0, inplace=True)
+        
+        # Relate the user features with merchant and coupon
+        df2 = pd.merge(df1, user_features, how='left', on=['User_id'])
+    
+        # Concatenate user-merchant features
+        user_merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df3 = pd.merge(df2, user_merchant, how='left', on=['User_id', 'Merchant_id'])
+        
+        # Concatenate merchant features
+        merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df4 = pd.merge(df3, merchant, how='left', on=['Merchant_id'])
+        
+        # Concatenate coupon features
+        coupon = pd.read_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df5 = pd.merge(df4, coupon, how='left', on=['Coupon_id'])
+        
+        df5.to_csv(os.path.join(self.feature_data_dir, 'o2o_train.csv'), index=False)        # Save the final training data
+        
+    def check_null(self, df):
+        if df.isnull().values.any() is True or df.isna().values.any() is True:
+            raise RuntimeError('There is null value in DataFrame')
+    
 
 
 
@@ -750,14 +799,16 @@ if __name__ == '__main__':
     extr = extract('C:\\scnguh\\datamining\\o2o')
     
     extr.user_offline_features()
-      
-    extr.user_online_features()
        
+    extr.user_online_features()
+        
     extr.merchant_features()
-     
+      
     extr.user_merchant_features()
-    
+     
     extr.coupon_features()
+    
+    extr.integrate_all_features()
     
     
     
