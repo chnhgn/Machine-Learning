@@ -750,9 +750,13 @@ class extract(object):
         Order: user -> merchant -> coupon
         """
         # Base relationships
-        df1 = self.df_offline[(self.df_offline.Coupon_id != 'null')][['User_id', 'Merchant_id', 'Coupon_id']]
-        df1.drop_duplicates(inplace=True)
+        df1 = self.df_offline[(self.df_offline.Coupon_id != 'null')]
+        df1['target'] = df1.apply(lambda x : '1' if x[-1] != 'null' else '0', axis=1)     # 1: used  0: not used
         df1.sort_values(by=['User_id'], inplace=True)
+        df1.drop(['Date'], axis=1, inplace=True)
+        df1['Distance'] = df1.Distance.apply(lambda x : '10' if x == 'null' else x)
+        df1['Discount_rate'] = df1.Discount_rate.apply(lambda x:x if ':' not in x
+                                else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
         
         # Offline user features/online user features
         offline_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'),
@@ -765,9 +769,9 @@ class extract(object):
         user_features = pd.merge(offline_user, online_user, how='left', on=['User_id'])
         user_features.fillna(0, inplace=True)
         
-        # Relate the user features with merchant and coupon
+        # Concatenate the user features
         df2 = pd.merge(df1, user_features, how='left', on=['User_id'])
-    
+        
         # Concatenate user-merchant features
         user_merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'),
                                   dtype=str, 
@@ -801,13 +805,13 @@ if __name__ == '__main__':
     extr = extract('C:\\scnguh\\datamining\\o2o')
     
     extr.user_offline_features()
-       
-    extr.user_online_features()
         
+    extr.user_online_features()
+         
     extr.merchant_features()
-      
+       
     extr.user_merchant_features()
-     
+      
     extr.coupon_features()
     
     extr.integrate_all_features()
