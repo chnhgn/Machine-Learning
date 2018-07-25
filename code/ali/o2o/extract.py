@@ -786,6 +786,8 @@ class extract(object):
                                   keep_default_na=False)
         df5 = pd.merge(df4, coupon, how='left', on=['Coupon_id'])
         
+        self.check_null(df5)
+        
         df5.to_csv(os.path.join(self.feature_data_dir, 'o2o_train.csv'), index=False)        # Save the final training data
         
     def check_null(self, df):
