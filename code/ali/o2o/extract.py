@@ -365,7 +365,8 @@ class extract(object):
         df_ft1.set_index(['User_id'], inplace=True)     # Merge use
         
         # Merge all single features
-        df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8], axis=1)
+        # Removed features: df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft7, df_ft8
+        df_ft = pd.concat([df_ft6], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'User_id'}, inplace=True)
         df_ft.to_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'), index=False)
@@ -387,7 +388,9 @@ class extract(object):
         df_ft10_4 = df_ft10_1.groupby(['Merchant_id'], as_index=False)['Distance'].mean()
         df_ft10_4.rename(columns={'Distance':'cp_used_mean_distance_in_merchant'}, inplace=True)
         
-        df_ft10 = pd.merge(pd.merge(df_ft10_2, df_ft10_3), df_ft10_4)
+        # Remove cp_used_max_distance_in_merchant and cp_used_min_distance_in_merchant
+#         df_ft10 = pd.merge(pd.merge(df_ft10_2, df_ft10_3), df_ft10_4)
+        df_ft10 = df_ft10_4
         df_ft10 = pd.merge(df_merchant, df_ft10, how='left', on=['Merchant_id'])
         df_ft10.fillna(10, inplace=True)
         
@@ -461,8 +464,9 @@ class extract(object):
         df_feature4_4 = df_feature4_1.groupby(['Merchant_id'], as_index=False)['Discount_rate'].min()
         df_feature4_4.rename(columns={'Discount_rate':'cp_used_discount_min_in_merchant'}, inplace=True)
         
-        df_feature4 = pd.merge(df_feature4_2, df_feature4_3, on=['Merchant_id'])
-        df_feature4 = pd.merge(df_feature4, df_feature4_4, on=['Merchant_id'])
+#         df_feature4 = pd.merge(df_feature4_2, df_feature4_3, on=['Merchant_id'])
+#         df_feature4 = pd.merge(df_feature4, df_feature4_4, on=['Merchant_id'])
+        df_feature4 = df_feature4_4
         
         df_ft4 = pd.merge(df_merchant, df_feature4, how='left', on=['Merchant_id'])
         df_ft4.fillna(0, inplace=True)
@@ -517,7 +521,8 @@ class extract(object):
         df_ft11.set_index(['Merchant_id'], inplace=True)     # Merge use
         
         # Merge all single features
-        df_ft = pd.concat([df_ft1, df_ft2, df_ft3, df_ft4, df_ft5, df_ft6, df_ft7, df_ft8, df_ft9, df_ft10, df_ft11], axis=1)
+        # Removed features: df_ft1, df_ft2, df_ft3, df_ft6, df_ft7
+        df_ft = pd.concat([df_ft4, df_ft5, df_ft8, df_ft9, df_ft10, df_ft11], axis=1)
         df_ft.reset_index(inplace=True)
         df_ft.rename(columns={'index':'Merchant_id'}, inplace=True)
         df_ft.to_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'), index=False)
@@ -615,7 +620,10 @@ class extract(object):
         df_ft5_4['user_merchant_cp_used_num_outof_merchant_unused_num'] = df_ft5_4.apply(lambda x : x[-4]/x[-1] if x[-1] != 0 else 0, axis=1)
         df_ft5_4 = df_ft5_4[['User_id', 'Merchant_id', 'user_merchant_cp_used_num_outof_merchant_unused_num']]
         
-        df_ft5 = pd.merge(df_ft5_3, df_ft5_4, on=['User_id', 'Merchant_id'])
+        
+        # Removed features: df_ft5_3
+#         df_ft5 = pd.merge(df_ft5_3, df_ft5_4, on=['User_id', 'Merchant_id'])
+        df_ft5 = df_ft5_4
         
         df_ft5.set_index(['User_id', 'Merchant_id'], inplace=True)     # Merge use
         
