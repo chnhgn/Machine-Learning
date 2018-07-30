@@ -27,6 +27,58 @@ class model(object):
                             dtype=str,
                             keep_default_na=False)
     
+    def test_model(self):
+        self.train.drop(['cp_received_dayofweek', 'cp_received_dayofmonth', 'User_id', 'Merchant_id', 'Coupon_id', 'Date_received'], axis=1, inplace=True)
+        for col in self.train.columns:
+            if col not in ['target', 'cp_type']:
+                self.train[col] = eval("self.train['%s'].astype('float')" % col)
+        
+        data = self.train.copy()
+        label = np.array(data['target'].tolist()).astype(np.int)
+        data.drop(['target'], axis=1, inplace=True)
+        
+        train_x, test_x, train_y, test_y = train_test_split(data, label, random_state=0)
+        
+        for f in train_x.columns: 
+            if train_x[f].dtype=='object': 
+                lbl = preprocessing.LabelEncoder() 
+                lbl.fit(list(train_x[f].values)) 
+                train_x[f] = lbl.transform(list(train_x[f].values))
+                
+        for f in test_x.columns: 
+            if test_x[f].dtype=='object': 
+                lbl = preprocessing.LabelEncoder() 
+                lbl.fit(list(test_x[f].values)) 
+                test_x[f] = lbl.transform(list(test_x[f].values))
+        
+        dtrain=xgb.DMatrix(train_x,label=train_y)
+        dtest=xgb.DMatrix(test_x)
+        
+        params={'booster':'gbtree',
+                'objective': 'rank:pairwise',
+                'eval_metric':'auc',
+                'gamma':0.1,
+                'min_child_weight':1.1,
+                'max_depth':5,
+                'lambda':10,
+                'subsample':0.7,
+                'colsample_bytree':0.7,
+                'colsample_bylevel':0.7,
+                'eta': 0.01,
+                'tree_method':'exact',
+                'seed':0,
+                'nthread':12
+            }
+        
+        watchlist = [(dtrain,'train')]
+        
+        bst=xgb.train(params,dtrain,num_boost_round=100,evals=watchlist)
+
+        ypred=bst.predict(dtest)
+        
+        print('AUC: %.4f' % metrics.roc_auc_score(test_y,ypred))
+        
+    
     def modeling(self):
         # Processing the valid data
         self.valid['Distance'] = self.valid.Distance.apply(lambda x : '10' if x == 'null' else x)  # The null distance will be regarded as the farthest
@@ -123,4 +175,13 @@ if __name__ == '__main__':
     
     mo = model('C:\\scnguh\\datamining\\o2o')
     
-    mo.modeling()
+    mo.test_model()
+    
+#     mo.modeling()
+    
+    
+    
+    
+    
+    
+    
