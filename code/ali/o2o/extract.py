@@ -21,6 +21,14 @@ class extract(object):
         self.df_online = pd.read_csv(os.path.join(self.split_data_dir, 'online_part1.csv'),
                                   dtype=str, 
                                   keep_default_na=False)
+        
+        self.df_predict = pd.read_csv(os.path.join(data_path, 'ccf_offline_stage1_test_revised.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        
+        self.df_test = pd.read_csv(os.path.join(self.split_data_dir, 'offline_part2.csv'),
+                            dtype=str,
+                            keep_default_na=False)
     
     def user_offline_features(self):
         # Total user number
@@ -710,6 +718,7 @@ class extract(object):
         df_ft10 = pd.DataFrame(df_ft10_1)
         df_ft10.reset_index(inplace=True)
         df_ft10.rename(columns={'Date_received':'cp_received_dayofweek'}, inplace=True)
+        df_ft10['cp_received_dayofweek'] = df_ft10.cp_received_dayofweek.apply(lambda x : self.convert_weekday(x))
         
         # Coupon day of month
         df_ft11_1 = self.df_offline[(self.df_offline.Date_received != 'null')][['Coupon_id', 'Date_received']]
@@ -721,6 +730,7 @@ class extract(object):
         df_ft11 = pd.DataFrame(df_ft11_1)
         df_ft11.reset_index(inplace=True)
         df_ft11.rename(columns={'Date_received':'cp_received_dayofmonth'}, inplace=True)
+        df_ft11['cp_received_dayofmonth'] = df_ft11.cp_received_dayofmonth.apply(lambda x : self.convert_monthday(x))
         
         # Merge all single features
         for i in range(2,12):
@@ -740,12 +750,17 @@ class extract(object):
         """
         # Base relationships
         df1 = self.df_offline[(self.df_offline.Coupon_id != 'null')]
-        df1['target'] = df1.apply(lambda x : '1' if x[-1] != 'null' else '0', axis=1)     # 1: used  0: not used
+        # 1: used  0: not used 以15天内用券为正例
+        df1['Date'] = df1.Date.apply(lambda x : None if x == 'null' else x)
+        df1['Date'] = pd.to_datetime(df1.Date)
+        df1['Date_received'] = pd.to_datetime(df1.Date_received)
+        df1['target'] = df1.apply(lambda x : '0' if x[-1] is None else ('1' if (x[-1]-x[-2]).days<15 else '0'), axis=1)     
+        
         df1.sort_values(by=['User_id'], inplace=True)
         df1.drop(['Date'], axis=1, inplace=True)
+        df1['Discount_rate'] = df1.Discount_rate.apply(lambda x:x if ':' not in x 
+                                        else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
         df1['Distance'] = df1.Distance.apply(lambda x : '10' if x == 'null' else x)
-        df1['Discount_rate'] = df1.Discount_rate.apply(lambda x:x if ':' not in x
-                                else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
         
         # Offline user features/online user features
         offline_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'),
@@ -782,11 +797,146 @@ class extract(object):
         self.check_null(df5)
         
         df5.to_csv(os.path.join(self.feature_data_dir, 'o2o_train.csv'), index=False)        # Save the final training data
+    
+    def integrate_predict_data(self):
+        # Base relationships
+        df1 = self.df_predict
+        df1.sort_values(by=['User_id'], inplace=True)
+        df1['Distance'] = df1.Distance.apply(lambda x : '10' if x == 'null' or x is np.NaN else x)
+        
+        # Offline user features/online user features
+        offline_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        
+        online_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        user_features = pd.merge(offline_user, online_user, how='left', on=['User_id'])
+        user_features.fillna(0, inplace=True)
+        
+        # Concatenate the user features
+        df2 = pd.merge(df1, user_features, how='left', on=['User_id'])
+        
+        # Concatenate user-merchant features
+        user_merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df3 = pd.merge(df2, user_merchant, how='left', on=['User_id', 'Merchant_id'])
+        
+        # Concatenate merchant features
+        merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df4 = pd.merge(df3, merchant, how='left', on=['Merchant_id'])
+        
+        # Concatenate coupon features
+        coupon = pd.read_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df5 = pd.merge(df4, coupon, how='left', on=['Coupon_id'])
+        
+        # Address NaN value
+        df5['temp'] = df5.apply(lambda x : '1' if ':' in x[3] else '0', axis=1)
+        df5['cp_type'] = df5['temp']
+        df5.drop(['temp'], inplace=True, axis=1)
+        df5['Discount_rate'] = df5.Discount_rate.apply(lambda x:x if ':' not in x 
+                                        else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
+        df5.fillna(0, inplace=True)
+        
+        self.check_null(df5)
+        
+        df5.to_csv(os.path.join(self.feature_data_dir, 'o2o_predict.csv'), index=False)        # Save predict data
         
     def check_null(self, df):
-        if df.isnull().values.any() is True or df.isna().values.any() is True:
+        if df.isnull().sum().sum() > 0 or df.isna().values.any() is True:
             raise RuntimeError('There is null value in DataFrame')
     
+    def integrate_test_data(self):
+        # Base relationships
+        df1 = self.df_test[(self.df_test.Coupon_id != 'null')]
+        # 1: used  0: not used 以15天内用券为正例
+        df1['Date'] = df1.Date.apply(lambda x : None if x == 'null' else x)
+        df1['Date'] = pd.to_datetime(df1.Date)
+        df1['Date_received'] = pd.to_datetime(df1.Date_received)
+        df1['target'] = df1.apply(lambda x : '0' if x[-1] is None else ('1' if (x[-1]-x[-2]).days<15 else '0'), axis=1)     
+        
+        df1.sort_values(by=['User_id'], inplace=True)
+        df1.drop(['Date'], axis=1, inplace=True)
+        df1['Distance'] = df1.Distance.apply(lambda x : '10' if x == 'null' or x is np.NaN else x)
+        
+        # Offline user features/online user features
+        offline_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_offline_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        
+        online_user = pd.read_csv(os.path.join(self.feature_data_dir, 'user_online_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        user_features = pd.merge(offline_user, online_user, how='left', on=['User_id'])
+        user_features.fillna(0, inplace=True)
+        
+        # Concatenate the user features
+        df2 = pd.merge(df1, user_features, how='left', on=['User_id'])
+        
+        # Concatenate user-merchant features
+        user_merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'user_merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df3 = pd.merge(df2, user_merchant, how='left', on=['User_id', 'Merchant_id'])
+        
+        # Concatenate merchant features
+        merchant = pd.read_csv(os.path.join(self.feature_data_dir, 'merchant_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df4 = pd.merge(df3, merchant, how='left', on=['Merchant_id'])
+        
+        # Concatenate coupon features
+        coupon = pd.read_csv(os.path.join(self.feature_data_dir, 'coupon_features.csv'),
+                                  dtype=str, 
+                                  keep_default_na=False)
+        df5 = pd.merge(df4, coupon, how='left', on=['Coupon_id'])
+        
+        # Address NaN value
+        df5['temp'] = df5.apply(lambda x : '1' if ':' in x[3] else '0', axis=1)
+        df5['cp_type'] = df5['temp']
+        df5.drop(['temp'], inplace=True, axis=1)
+        df5['Discount_rate'] = df5.Discount_rate.apply(lambda x:x if ':' not in x 
+                                        else (float(str(x).split(':')[0]) - float(str(x).split(':')[1]))/float(str(x).split(':')[0]))
+        df5.fillna(0, inplace=True)
+        
+        self.check_null(df5)
+        
+        df5.to_csv(os.path.join(self.feature_data_dir, 'o2o_test.csv'), index=False)        # Save the test data
+    
+    def convert_weekday(self, wdays):
+        """
+        Mon - Fri : 0 - 6
+        [0, 1, 2] : 1110000
+        [3,4,6] : 0001101
+        """
+        line = list('0000000')  # Initial the string line
+        
+        for p in wdays:
+            line[p] = '1'
+            
+        newli = ''.join(line)
+        return newli
+    
+    def convert_monthday(self, days):
+        """
+        1 - 31 : 1 - 31
+        [28, 29, 30] : 0000000000000000000000000001110
+        [1, 2, 31] : 1100000000000000000000000000001
+        """
+        line = list('0000000000000000000000000000000')  # Initial the string line
+        
+        for p in days:
+            line[p-1] = '1'
+            
+        newli = ''.join(line)
+        return newli
+
 
 
 
@@ -794,16 +944,22 @@ if __name__ == '__main__':
     extr = extract('C:\\scnguh\\datamining\\o2o')
     
     extr.user_offline_features()
-         
+             
     extr.user_online_features()
-          
+              
     extr.merchant_features()
-        
+            
     extr.user_merchant_features()
-      
+         
     extr.coupon_features()
-    
+     
     extr.integrate_all_features()
+     
+    extr.integrate_predict_data()
+    
+    extr.integrate_test_data()
+    
+    
     
     
     

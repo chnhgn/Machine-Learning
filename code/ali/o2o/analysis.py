@@ -3,6 +3,9 @@ import os
 import pandas as pd
 import scipy.stats as stats
 import numpy as np
+from sklearn.feature_selection import RFE
+from sklearn.linear_model import LogisticRegression
+from sklearn.decomposition import PCA
 
 
 class analysis(object):
@@ -64,6 +67,43 @@ class analysis(object):
         alpha = 0.05
         print(df_corr[(df_corr.p_value > alpha)])
 
+    def feature_selection_rfe(self):
+        # 递归式消除法 RFE
+        self.train.drop(['cp_received_dayofweek', 'cp_received_dayofmonth', 'User_id', 'Merchant_id', 'Coupon_id', 'Date_received'], axis=1, inplace=True)
+        for col in self.train.columns:
+            if col not in ['target', 'cp_type']:
+                self.train[col] = eval("self.train['%s'].astype('float')" % col)
+        
+        data = self.train.copy()
+        label = np.array(data['target'].tolist()).astype(np.int)
+        data.drop(['target'], axis=1, inplace=True)
+        
+        # feature extraction
+        model = LogisticRegression()
+        rfe = RFE(model, 3)
+        fit = rfe.fit(data.values, label)
+        print(fit.n_features_)
+        print(fit.support_)
+        print(fit.ranking_)
+        
+    def feature_selection_pca(self):
+        self.train.drop(['cp_received_dayofweek', 'cp_received_dayofmonth', 'User_id', 'Merchant_id', 'Coupon_id', 'Date_received'], axis=1, inplace=True)
+        for col in self.train.columns:
+            if col not in ['target', 'cp_type']:
+                self.train[col] = eval("self.train['%s'].astype('float')" % col)
+        
+        data = self.train.copy()
+        label = np.array(data['target'].tolist()).astype(np.int)
+        data.drop(['target'], axis=1, inplace=True)
+        
+        # feature extraction
+        np.set_printoptions(suppress=True)
+        pca = PCA(n_components=38)
+        fit = pca.fit(data.values)
+        
+        print(data.columns.tolist())
+        print(fit.explained_variance_ratio_)
+            
 
 
 
@@ -71,6 +111,12 @@ class analysis(object):
 if __name__ == '__main__':
     ana = analysis('C:\\scnguh\\datamining\\o2o')
     
-    ana.correlation()
+    ana.feature_selection_pca()
+    
+#     ana.feature_selection_rfe()
+    
+#     ana.correlation()
+    
+    
     
     
