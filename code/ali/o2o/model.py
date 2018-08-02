@@ -6,6 +6,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.cross_validation import train_test_split
 from sklearn import preprocessing
+from sklearn.preprocessing import MinMaxScaler
 
 
 class model(object):
@@ -26,6 +27,8 @@ class model(object):
         self.test = pd.read_csv(os.path.join(self.feature_data_dir, 'o2o_test.csv'),
                             dtype=str,
                             keep_default_na=False)
+        
+        self.test_copy = self.test.copy()
     
     def preprocessing(self):
         result = {}
@@ -89,17 +92,49 @@ class model(object):
             # Persist the predict result
             df = self.predict_copy
             df = df[['User_id', 'Coupon_id', 'Date_received']]
-            df_prob = pd.DataFrame(y_predict, columns=['Probability'])
+            df_prob = pd.DataFrame(MinMaxScaler().fit_transform(y_predict.reshape(-1, 1)), columns=['Probability'])
             df = pd.concat([df, df_prob], axis=1)
             df.to_csv(os.path.join(self.feature_data_dir, 'o2o_predict_result.csv'), index=False)
         
         if test_data is not None and test_label is not None:
             dtest = xgb.DMatrix(test_data)
             ypred=bst.predict(dtest)
+            
+            df2 = self.test_copy
+            df2 = df2[['User_id', 'Coupon_id', 'Date_received', 'target']]
+            df_prob2 = pd.DataFrame(MinMaxScaler().fit_transform(ypred.reshape(-1, 1)), columns=['Probability'])
+            df2 = pd.concat([df2, df_prob2], axis=1)
             print('AUC: %.4f' % metrics.roc_auc_score(test_label,ypred))
+            df2.to_csv(os.path.join(self.feature_data_dir, 'o2o_predict_test.csv'), index=False)
+            
+    def test_model(self):
+        train_x, test_x, train_y, test_y = train_test_split(res['train_x'], res['train_y'], random_state=0) 
         
+        dtrain=xgb.DMatrix(train_x,label=train_y)
+        dtest=xgb.DMatrix(test_x)
         
-
+        params={'booster':'gbtree',
+            'objective': 'binary:logistic',
+            'eval_metric': 'auc',
+            'max_depth':4,
+            'lambda':10,
+            'subsample':0.75,
+            'colsample_bytree':0.75,
+            'min_child_weight':2,
+            'eta': 0.025,
+            'seed':0,
+            'nthread':8,
+             'silent':1}
+        
+        watchlist = [(dtrain,'train')]   
+        bst=xgb.train(params,dtrain,num_boost_round=100,evals=watchlist)
+        ypred=bst.predict(dtest)
+        
+        df_prob = pd.DataFrame(MinMaxScaler().fit_transform(ypred.reshape(-1, 1)), columns=['Probability'])
+        df_label = pd.DataFrame(test_y, columns=['Label'])
+        df = pd.concat([df_prob, df_label], axis=1)
+        df.to_csv(os.path.join(self.feature_data_dir, 'o2o_predict_test.csv'), index=False)
+        print('AUC: %.4f' % metrics.roc_auc_score(test_y,ypred))
 
 
 if __name__ == '__main__':
@@ -107,6 +142,8 @@ if __name__ == '__main__':
     mo = model('C:\\scnguh\\datamining\\o2o')
     
     res = mo.preprocessing()
+    
+#     mo.test_model()
     
 #     mo.modeling(res['train_x'], res['train_y'], res['test_x'], res['test_y'])
     
