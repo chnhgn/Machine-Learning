@@ -40,6 +40,8 @@ class model(object):
                     exec("%s[col] = %s[col].astype('float')" % (data, data))
             
             copy = eval("%s.copy()" % data)
+            copy.sort_index(axis=1, inplace=True)
+            
             if data != 'self.predict':
                 label = np.array(copy['target'].tolist()).astype(np.int)
                 copy.drop(['target'], axis=1, inplace=True)
