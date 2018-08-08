@@ -5,6 +5,7 @@ import scipy.stats as stats
 import numpy as np
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 
@@ -87,23 +88,21 @@ class analysis(object):
         print(fit.ranking_)
         
     def feature_selection_pca(self):
-        self.train.drop(['cp_received_dayofweek', 'cp_received_dayofmonth', 'User_id', 'Merchant_id', 'Coupon_id', 'Date_received'], axis=1, inplace=True)
+        self.train.drop(['User_id', 'Merchant_id', 'Coupon_id', 'Date_received'], axis=1, inplace=True)
         for col in self.train.columns:
-            if col not in ['target', 'cp_type']:
-                self.train[col] = eval("self.train['%s'].astype('float')" % col)
+            self.train[col] = eval("self.train['%s'].astype('float')" % col)
         
         data = self.train.copy()
         label = np.array(data['target'].tolist()).astype(np.int)
         data.drop(['target'], axis=1, inplace=True)
         
-        # feature extraction
-        np.set_printoptions(suppress=True)
-        pca = PCA(n_components=38)
-        fit = pca.fit(data.values)
+        print(data.columns)
         
-        print(data.columns.tolist())
-        print(fit.explained_variance_ratio_)
-            
+        sc = StandardScaler()
+        X_train_std = sc.fit_transform(data)
+        pca = PCA(n_components=None)
+        X_train_pca = pca.fit_transform(X_train_std)
+        print(pca.explained_variance_ratio_)
 
 
 
