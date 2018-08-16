@@ -64,7 +64,19 @@ class time_series(object):
             dfoutput['Critical Value (%s)'%key] = value
         return dfoutput
     
+    def difference(self, dataset, interval=1):
+        diff = list()
+        for i in range(interval, len(dataset)):
+            value = dataset[i] - dataset[i - interval]
+            diff.append(value)
+        return np.array(diff)
+
+    def inverse_difference(self, history, yhat, interval=1):
+        return yhat + history[-interval]
     
+    
+    def inverse_moving_mean(self, history, yhat, interval):
+        return yhat*12 - sum(history[-(interval-1):])
     
         
 
@@ -110,12 +122,16 @@ if __name__ == '__main__':
     ts_ori.plot(color='red', label='Original')
     plt.legend(loc='best')
     plt.title('RMSE: %.4f'% np.sqrt(sum((log_recover-ts_ori)**2)/ts_ori.size))
+    plt.grid()
     plt.show()
     
-    
-    
-    
-    
+    # 预测
+    forecast_ts = result_arma.predict(start=len(diff_1), end=len(diff_1)+6)
+    # 以第一个预测值为例子进行逆运算
+    inverse_diff = ts.inverse_difference(rol_mean.tolist(), forecast_ts[996], 1)
+    inverse_moving_mean = ts.inverse_moving_mean(ts_log.tolist(), inverse_diff, 12)
+    inverse_log = np.exp(inverse_moving_mean)
+    print(inverse_log)
     
     
     
