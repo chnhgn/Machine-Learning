@@ -64,7 +64,7 @@ if __name__ == '__main__':
     
     df = ext.calc_redeem_purchase()
     
-#     ext.trend_plot(df)
+    ext.trend_plot(df)
     
     series1 = df.iloc[:,[0,1]]
     series2 = df.iloc[:,[0,2]]
