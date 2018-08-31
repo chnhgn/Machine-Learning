@@ -28,13 +28,16 @@ class extract(object):
         df['total_purchase_amt'] = df.total_purchase_amt.astype('int')
         df['total_redeem_amt'] = df.total_redeem_amt.astype('int')
         df['report_date'] = pd.to_datetime(df.report_date, format='%Y-%m-%d')
-        df_0 = df[(df.total_purchase_amt > 0)&(df.total_redeem_amt > 0)][['user_id', 'report_date', 'total_purchase_amt', 'total_redeem_amt']]
+        df_0 = df[(df.total_purchase_amt > 0) & (df.total_redeem_amt > 0)][['user_id', 'report_date', 'total_purchase_amt', 'total_redeem_amt']]
         df_0.sort_values(by='report_date', inplace=True)
         
         df_purchase = df_0.groupby(['report_date'], as_index=False)['total_purchase_amt'].sum()
         df_redeem = df_0.groupby(['report_date'], as_index=False)['total_redeem_amt'].sum()
         
         df_total = pd.merge(df_purchase, df_redeem, on='report_date')
+        
+        df_total.to_csv(os.path.join(self.temp_dir, 'day_purchase_redeem.csv'), index=False)
+        
         return df_total
     
     def trend_plot(self, df):
@@ -49,9 +52,9 @@ class extract(object):
     
     def test_stationarity(self, ts):
         dftest = adfuller(ts)
-        dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
-        for key,value in dftest[4].items():
-            dfoutput['Critical Value (%s)'%key] = value
+        dfoutput = pd.Series(dftest[0:4], index=['Test Statistic', 'p-value', '#Lags Used', 'Number of Observations Used'])
+        for key, value in dftest[4].items():
+            dfoutput['Critical Value (%s)' % key] = value
         return dfoutput
     
     
@@ -66,8 +69,8 @@ if __name__ == '__main__':
     
     ext.trend_plot(df)
     
-    series1 = df.iloc[:,[0,1]]
-    series2 = df.iloc[:,[0,2]]
+    series1 = df.iloc[:, [0, 1]]
+    series2 = df.iloc[:, [0, 2]]
     series1.set_index(['report_date'], inplace=True)
     series2.set_index(['report_date'], inplace=True)
     series1 = series1.T.squeeze()
