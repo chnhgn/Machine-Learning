@@ -49,35 +49,30 @@ class model(object):
         # 处理特殊十一黄金周和双十一，lower_window=-1表示昨天也是假期，upper_window=2表示明天后天也是假期
         national_day = pd.DataFrame({
             'holiday' : 'national',
-            'ds' : pd.to_datetime(['2013-10-01', '2013-10-02', '2013-10-03',
-                                   '2013-10-04', '2013-10-05', '2013-10-06',
-                                   '2013-10-07']),
+            'ds' : pd.to_datetime(['2013-10-01']),
             'lower_window' : 0,
-            'upper_window' : 1
+            'upper_window' : 6
         })
         
         double_11 = pd.DataFrame({
             'holiday' : 'd11',
-            'ds' : pd.to_datetime(['2013-11-01', '2013-11-02', '2013-11-03', '2013-11-04',
-                                   '2013-11-05', '2013-11-06', '2013-11-07', '2013-11-08',
-                                   '2013-11-09', '2013-11-10', '2013-11-11', '2013-11-12',
-                                   '2013-11-13', '2013-11-14', '2013-11-15', '2013-11-16']),
-            'lower_window' : 0,
-            'upper_window' : 1
+            'ds' : pd.to_datetime(['2013-11-11']),
+            'lower_window' :-10,
+            'upper_window' : 5
         })
         
         tomb_sweep = pd.DataFrame({
             'holiday' : 'ts',
-            'ds' : pd.to_datetime(['2014-04-05', '2014-04-06', '2014-04-07']),
+            'ds' : pd.to_datetime(['2014-04-05']),
             'lower_window' : 0,
-            'upper_window' : 1
+            'upper_window' : 2
         })
         
         mid_autumn = pd.DataFrame({
             'holiday' : 'ma',
-            'ds' : pd.to_datetime(['2013-09-19', '2013-09-20', '2013-09-21']),
+            'ds' : pd.to_datetime(['2013-09-19']),
             'lower_window' : 0,
-            'upper_window' : 1
+            'upper_window' : 2
         })
         
         holidays = pd.concat([national_day, double_11, tomb_sweep, mid_autumn])
