@@ -42,6 +42,13 @@ df_raw.first_browser = df_raw.first_browser.apply(lambda x:'unknown' if x == '-u
 # 处理session数据集
 # print(df_raw_session.groupby(['action_type'])['action_type'].count())
 df_raw_session.secs_elapsed.fillna(0, inplace=True)
+df_raw_session.action = df_raw_session.action.apply(lambda x:'unknown' if x == '-unknown-' else x)
+df_raw_session.action.fillna('unknown', inplace=True)
+df_raw_session.action_type = df_raw_session.action_type.apply(lambda x:'unknown' if x == '-unknown-' else x)
+df_raw_session.action_type.fillna('other', inplace=True)
+df_raw_session.action_detail = df_raw_session.action_detail.apply(lambda x:'unknown' if x == '-unknown-' else x)
+df_raw_session.action_detail.fillna('other', inplace=True)
+df_raw_session.device_type = df_raw_session.device_type.apply(lambda x:'unknown' if x == '-unknown-' else x)
 
 # 拆分数据集并保存
 train_clean = df_raw[:-len(df_raw_test)]
