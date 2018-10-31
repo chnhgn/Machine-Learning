@@ -8,6 +8,7 @@ import pandas as pd
 pd.set_option('display.max_columns', None)
 import datetime
 import numpy as np
+from sklearn.decomposition import PCA
 
 
 class extract(object):
@@ -18,7 +19,7 @@ class extract(object):
         elif extr_type == 'test':
             self.df_raw = pd.read_csv(file_dir + 'test_users_clean.csv')
             
-        self.df_age_gender_bkts = pd.read_csv(file_dir + 'age_gender_bkts.csv')
+        self.df_age_gender_bkts = self.preprocess_age_gender_bkts(pd.read_csv(file_dir + 'age_gender_bkts.csv'))
         self.df_countries = pd.read_csv(file_dir + 'countries.csv')
         self.df_sessions = pd.read_csv(file_dir + 'sessions_clean.csv')
     
@@ -199,12 +200,261 @@ class extract(object):
         df2.sort_values(['age', 'subtotal'], ascending=[1, 0], inplace=True)
         df2 = df2.groupby(['age'], as_index=False).head(1)[['age', 'subtotal']]
         df2.rename(columns={'subtotal':'bucket_booking_place_max_num'}, inplace=True)
-        df2 = df2.append({'age':'C', 'bucket_booking_place_max_num':0}, ignore_index=True)
         return df2   
     
     # 各层预定最少目的地的次数
+    def bucket_booking_place_min_num(self):
+        df1 = self.df_raw[['age', 'country_destination', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'country_destination'], as_index=False).agg({'date_account_created':'count'})
+        df2.rename(columns={'date_account_created':'subtotal'}, inplace=True)
+        df2 = df2[df2.country_destination != 'NDF']
+        df2.sort_values(['age', 'subtotal'], ascending=[1, 1], inplace=True)
+        df2 = df2.groupby(['age'], as_index=False).head(1)[['age', 'subtotal']]
+        df2.rename(columns={'subtotal':'bucket_booking_place_min_num'}, inplace=True)
+        return df2
     
+    # 各层不预定的比重
+    def bucket_no_booking_rate(self):
+        df1 = self.df_raw[['age', 'country_destination']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age'], as_index=False).agg({'country_destination':'count'})
+        df2.rename(columns={'country_destination':'total'}, inplace=True)
         
+        df3 = df1[df1.country_destination == 'NDF']
+        df3 = df3.groupby(['age'], as_index=False).agg({'country_destination':'count'})
+        df3.rename(columns={'country_destination':'subtotal'}, inplace=True)
+        
+        df4 = pd.merge(df2, df3, on='age')
+        df4['bucket_no_booking_rate'] = df4.apply(lambda x:x[2] / x[1], axis=1)
+        return df4[['age', 'bucket_no_booking_rate']]
+    
+    # 各层性别的比重
+    def bucket_gender_rate(self):
+        df1 = self.df_raw[['age', 'gender', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'gender'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_gender_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df4 = df4[['age', 'gender', 'bucket_gender_rate']]
+        df5 = df4.pivot(index='age', columns='gender', values='bucket_gender_rate')
+        df5.reset_index(inplace=True)
+        
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_gender_rate'}, inplace=True)
+                
+        return df5
+    
+    # 各层各个设备的使用率
+    def bucket_device_rate(self):
+        df1 = self.df_raw[['age', 'first_device_type', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'first_device_type'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_device_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'first_device_type', 'bucket_device_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_device_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层各个浏览器的使用率
+    def bucket_browser_rate(self):
+        df1 = self.df_raw[['age', 'first_browser', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'first_browser'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_browser_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'first_browser', 'bucket_browser_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_browser_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层各个注册应用的使用率
+    def bucket_signup_app_rate(self):
+        df1 = self.df_raw[['age', 'signup_app', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'signup_app'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_signup_app_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'signup_app', 'bucket_signup_app_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_signup_app_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层各个注册方式的比重
+    def bucket_signup_method_rate(self):
+        df1 = self.df_raw[['age', 'signup_method', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'signup_method'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_signup_method_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'signup_method', 'bucket_signup_method_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_signup_method_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层信息渠道类型比重
+    def bucket_affiliate_rate(self):
+        df1 = self.df_raw[['age', 'first_affiliate_tracked', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'first_affiliate_tracked'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_affiliate_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'first_affiliate_tracked', 'bucket_affiliate_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_affiliate_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层信息渠道提供商比重
+    def bucket_affiliate_provider_rate(self):
+        df1 = self.df_raw[['age', 'affiliate_provider', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'affiliate_provider'], as_index=False).agg({'date_account_created':'count'})
+        
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_affiliate_provider_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df5 = df4.pivot('age', 'affiliate_provider', 'bucket_affiliate_provider_rate')
+        df5.fillna(0, inplace=True)
+        df5.reset_index(inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_affiliate_provider_rate'}, inplace=True)
+        
+        return df5
+        
+    # 各层不同国家的性别比例
+    def bucket_dest_gender_rate(self):
+        df1 = self.df_age_gender_bkts
+        df2 = df1.groupby(['age_bucket', 'country_destination', 'gender'], as_index=False).agg({'population_in_thousands':'sum'})
+        df3 = df2.groupby(['age_bucket'])
+        
+        df = pd.DataFrame(columns=['age', 'country_destination', 'bucket_dest_gender_rate'])
+        for name, group in df3:
+            tmp = group.pivot('country_destination', 'gender', 'population_in_thousands')
+            tmp.reset_index(inplace=True)
+            tmp['bucket_dest_gender_rate'] = tmp.apply(lambda x:x['female'] / x['male'] if x['male'] != 0 else x['female'], axis=1)
+            tmp['age'] = name
+            tmp = tmp[['age', 'country_destination', 'bucket_dest_gender_rate']]
+            df = df.append(tmp)
+        
+        df4 = df.pivot('age', 'country_destination', 'bucket_dest_gender_rate')
+        df4.reset_index(inplace=True)
+        for index, value in df4.dtypes.iteritems():
+            if index is not 'age':
+                df4.rename(columns={index:index + '_dest_gender_rate'}, inplace=True)
+        
+        return df4
+    
+    # 各层不同国家的人数
+    def bucket_dest_population(self):
+        df1 = self.df_age_gender_bkts
+        df2 = df1.groupby(['age_bucket', 'country_destination'], as_index=False).agg({'population_in_thousands':'sum'})
+        df3 = df2.pivot('age_bucket', 'country_destination', 'population_in_thousands')
+        df3.reset_index(inplace=True)
+        df3.rename(columns={'age_bucket':'age'}, inplace=True)
+        for index, value in df3.dtypes.iteritems():
+            if index is not 'age':
+                df3.rename(columns={index:index + '_dest_population'}, inplace=True)
+        
+        return df3
+        
+    # 各层语言占比
+    def bucket_lang_rate(self):
+        df1 = self.df_raw[['age', 'language', 'date_account_created']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = df1.groupby(['age', 'language'], as_index=False).agg({'date_account_created':'count'})
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df4 = pd.merge(df2, df3, on='age', how='left')
+        df4['bucket_lang_rate'] = df4.apply(lambda x:x[2] / x[3], axis=1)
+        df4 = df4[['age', 'language', 'bucket_lang_rate']]
+        df5 = df4.pivot('age', 'language', 'bucket_lang_rate')
+        df5.reset_index(inplace=True)
+        df5.fillna(0, inplace=True)
+        for index, value in df5.dtypes.iteritems():
+            if index is not 'age':
+                df5.rename(columns={index:index + '_lang_rate'}, inplace=True)
+        
+        return df5
+    
+    # 各层目的地平均距离
+    def bucket_dest_avg_dist(self):
+        df1 = self.df_raw[['age', 'country_destination']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df2 = self.df_countries
+        df3 = pd.merge(df1, df2, on='country_destination', how='left')
+        df3 = df3[['age', 'country_destination', 'distance_km']]
+        df4 = df3.groupby(['age'], as_index=False).agg({'distance_km':'mean'})
+        df4.rename(columns={'distance_km':'bucket_dest_avg_dist'}, inplace=True)
+        return df4
+    
+    # 各层各个国家平均预定时长
+    def bucket_booking_avg_time(self):
+        df1 = self.df_raw[['age', 'country_destination', 'date_account_created', 'date_first_booking']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df1.date_account_created = pd.to_datetime(df1.date_account_created)
+        df1.date_first_booking = pd.to_datetime(df1.date_first_booking)
+        df1['bucket_booking_avg_time'] = df1.apply(lambda x:x[3] - x[2], axis=1)
+        df2 = df1[['age', 'country_destination', 'bucket_booking_avg_time']]
+        df2.bucket_booking_avg_time = df2.bucket_booking_avg_time.apply(lambda x:abs(x.days))
+        df3 = df2.groupby(['age', 'country_destination'], as_index=False).agg({'bucket_booking_avg_time':'mean'})
+        df3 = df3.pivot('age', 'country_destination', 'bucket_booking_avg_time')
+        df3.fillna(999999, inplace=True)
+        df3.reset_index(inplace=True)
+        for index, value in df3.dtypes.iteritems():
+            if index is not 'age':
+                df3.rename(columns={index:index + '_booking_avg_day'}, inplace=True)
+        
+        return df3
+    
+    # 各层当天预订率
+    def bucket_intraday_booking_rate(self):
+        df1 = self.df_raw[['age', 'date_account_created', 'date_first_booking']]
+        df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        
+        df2 = df1[df1.date_account_created == df1.date_first_booking]
+        df3 = df1.groupby(['age'], as_index=False).agg({'date_first_booking':'count'})
+        df4 = df2.groupby(['age'], as_index=False).agg({'date_account_created':'count'})
+        df5 = pd.merge(df3, df4, on='age', how='left')
+        df5['bucket_intraday_booking_rate'] = df5.apply(lambda x:x[2] / x[1], axis=1)
+        df5 = df5[['age', 'bucket_intraday_booking_rate']]
+        df5.fillna(0, inplace=True)
+        return df5
+            
+    
     
     ''' 特征整合 '''
         
@@ -246,7 +496,46 @@ class extract(object):
 #         df2 = self.most_popular_place()
 #         df3 = self.least_popular_place()
 #         df4 = self.bucket_place_booking_rate()
-        df5 = self.bucket_booking_place_max_num()
+#         df5 = self.bucket_booking_place_max_num()
+#         df6 = self.bucket_booking_place_min_num()
+#         df7 = self.bucket_no_booking_rate()
+#         df8 = self.bucket_gender_rate()
+        
+        # 网络生活取向
+#         cp1 = self.bucket_device_rate()
+#         cp2 = self.bucket_browser_rate()
+#         cp3 = self.bucket_signup_app_rate()
+#         cp4 = self.bucket_signup_method_rate()
+#          
+#         cp11 = pd.merge(cp1, cp2, on='age')
+#         cp22 = pd.merge(cp3, cp4, on='age')
+#         cp = pd.merge(cp11, cp22, on='age')
+#         cp.reset_index(inplace=True)
+#         cp = cp.iloc[:, 1:]
+#         cp.drop(['age'], inplace=True, axis=1)
+#         pca = PCA(n_components=5)
+#         cp_pca = pca.fit_transform(cp)
+#         df9 = pd.DataFrame(cp_pca, columns=['web_pca_1', 'web_pca_2', 'web_pca_3', 'web_pca_4', 'web_pca_5'])
+#         df9.loc[:, 'age'] = cp1.age
+        
+        # 信息渠道
+#         cp1 = self.bucket_affiliate_rate()
+#         cp2 = self.bucket_affiliate_provider_rate()
+#         cp = pd.merge(cp1, cp2, on='age')
+#         cp.reset_index(inplace=True)
+#         cp = cp.iloc[:, 1:]
+#         cp.drop(['age'], axis=1, inplace=True)
+#         pca = PCA(n_components=5)
+#         cp_pca = pca.fit_transform(cp)
+#         df10 = pd.DataFrame(cp_pca, columns=['aff_pca_1', 'aff_pca_2', 'aff_pca_3', 'aff_pca_4', 'aff_pca_5'])
+#         df10.loc[:, 'age'] = cp1.age
+        
+#         df11 = self.bucket_dest_gender_rate()
+#         df12 = self.bucket_dest_population()
+#         df13 = self.bucket_lang_rate()
+#         df14 = self.bucket_dest_avg_dist()
+#         df15 = self.bucket_booking_avg_time()
+        df16 = self.bucket_intraday_booking_rate()
     
     def features_other(self):
         pass
@@ -312,7 +601,12 @@ class extract(object):
         
         return bucket
     
-    
+    def preprocess_age_gender_bkts(self, df):
+        df.age_bucket = df.age_bucket.apply(lambda x:'100' if x == '100+' else x)
+        df.age_bucket = df.age_bucket.apply(lambda x:x.split('-')[0])
+        df.age_bucket = df.age_bucket.astype('int')
+        df.age_bucket = df.age_bucket.apply(lambda x:self.gen_age_bucket(x))
+        return df
         
     
 
