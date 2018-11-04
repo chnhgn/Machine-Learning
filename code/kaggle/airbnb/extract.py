@@ -33,9 +33,9 @@ class extract(object):
     
     # 用户年龄段
     def age_bucket(self):
-        df = self.df_raw[['id', 'age']]
+        df = self.df_raw[['id', 'age', 'country_destination']]
         df['age_bucket'] = df.age.apply(lambda x:self.gen_age_bucket(x))
-        return df[['id', 'age_bucket']]
+        return df[['id', 'age_bucket', 'country_destination']]
     
     # 首次操作与注册日期相差天数
     def first_active_account_created_delta(self):
@@ -122,19 +122,19 @@ class extract(object):
         df3 = pd.merge(df1, df2, left_on='id', right_on='user_id')
         df4 = df3[['id', 'action_type']].drop_duplicates()
         df4 = df4[(df4.action_type == 'booking_request') | (df4.action_type == 'booking_response')][['id', 'action_type']]
-        df4['has_booking_action'] = 'Y'
+        df4['has_booking_action'] = 1
         df5 = pd.merge(df3, df4, on='id', how='left')
         df5 = df5[['id', 'has_booking_action']].drop_duplicates()
-        df5.fillna('N', inplace=True)
+        df5.fillna(0, inplace=True)
         df6 = pd.merge(df1, df5, on='id', how='left')
-        df6.fillna('U', inplace=True)
+        df6.fillna(0, inplace=True)
         return df6
     
     # 年龄是否小于26岁
     def is_student(self):
         df1 = self.df_raw[['id', 'age']]
         df1.age = df1.age.astype('int')
-        df1['is_student'] = df1.apply(lambda x:'Y' if x['age'] <= 26 else 'N', axis=1)
+        df1['is_student'] = df1.apply(lambda x:'1' if x['age'] <= 26 else '0', axis=1)
         return df1[['id', 'is_student']]
     
     ''' 年龄层特征 '''
@@ -150,12 +150,14 @@ class extract(object):
         df4.rename(columns={'country_destination':'booking'}, inplace=True)
         df5 = pd.merge(df2, df4, on='age')
         df5['age_bucket_booking_rate'] = df5.apply(lambda x:x[2] / x[1], axis=1)
+        
         return df5[['age', 'age_bucket_booking_rate']]
     
     # 各层预定最多的目的地
     def most_popular_place(self):
         df1 = self.df_train[['age', 'country_destination', 'date_account_created']]
         df1.age = df1.age.apply(lambda x:self.gen_age_bucket(x))
+        df1 = df1[(df1.country_destination != 'NDF')]
         df2 = df1.groupby(['age', 'country_destination'], as_index=False).agg({'date_account_created':'count'})
         df2.rename(columns={'date_account_created':'total'}, inplace=True)
         df2.sort_values(['age', 'total'], ascending=[1, 0], inplace=True)
@@ -189,11 +191,10 @@ class extract(object):
         df5 = df4.pivot(index='age', columns='country_destination', values='rate')
         df5.fillna(0, inplace=True)
         df5.reset_index(inplace=True)
-        
+        df5.drop(['NDF'], axis=1, inplace=True)
         for index, value in df5.dtypes.iteritems():
             if index is not 'age':
                 df5.rename(columns={index:index + '_booking_rate'}, inplace=True)
-        
         return df5
     
     # 各层预定最多目的地的次数
@@ -468,7 +469,6 @@ class extract(object):
         df1.date_account_created = pd.to_datetime(df1.date_account_created)
         df1.date_account_created = pd.to_datetime(df1.date_account_created.dt.date)
         df1['near_holiday'] = (df1.date_account_created.isin(holidays + timedelta(days=1)) | df1.date_account_created.isin(holidays - timedelta(days=1)))
-        df1.near_holiday = df1.near_holiday.astype('str')
         return df1[['id', 'near_holiday']]
     
     # 注册日期是否为周末
@@ -476,14 +476,14 @@ class extract(object):
         df1 = self.df_raw[['id', 'date_account_created']]     
         df1.date_account_created = pd.to_datetime(df1.date_account_created)
         df1.date_account_created = df1.date_account_created.apply(lambda x:x.dayofweek)
-        df1['is_weekend'] = df1.apply(lambda x : 'Y' if x['date_account_created'] in [5, 6] else 'N', axis=1)
+        df1['is_weekend'] = df1.apply(lambda x : 1 if x['date_account_created'] in [5, 6] else 0, axis=1)
         return df1[['id', 'is_weekend']]
     
     # 年龄小于26岁的预订率
     def stu_booking_rate(self):
         df11 = self.df_train[['id', 'age']]
         df11.age = df11.age.astype('int')
-        df11['is_student'] = df11.apply(lambda x:'Y' if x['age'] <= 26 else 'N', axis=1)
+        df11['is_student'] = df11.apply(lambda x:'1' if x['age'] <= 26 else '0', axis=1)
         df1 = df11[['id', 'is_student']]
         
         df2 = self.df_train[['id', 'country_destination']] 
@@ -499,7 +499,7 @@ class extract(object):
     def stu_dest_booking_rate(self):
         df11 = self.df_train[['id', 'age']]
         df11.age = df11.age.astype('int')
-        df11['is_student'] = df11.apply(lambda x:'Y' if x['age'] <= 26 else 'N', axis=1)
+        df11['is_student'] = df11.apply(lambda x:'1' if x['age'] <= 26 else '0', axis=1)
         df1 = df11[['id', 'is_student']]
         
         df2 = self.df_train[['id', 'country_destination', 'date_account_created']]
@@ -567,7 +567,7 @@ class extract(object):
         df6 = self.frequent_used_device()
         df7 = self.user_time_consume()
         df8 = self.user_time_avg()
-        df9 = self.frequent_action()
+#         df9 = self.frequent_action()
         df10 = self.has_booking_action()
         df11 = self.is_student()
         
@@ -579,11 +579,11 @@ class extract(object):
         df6.set_index(['id'], inplace=True)
         df7.set_index(['id'], inplace=True)
         df8.set_index(['id'], inplace=True)
-        df9.set_index(['id'], inplace=True)
+#         df9.set_index(['id'], inplace=True)
         df10.set_index(['id'], inplace=True)
         df11.set_index(['id'], inplace=True)
         
-        df = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11], axis=1)
+        df = pd.concat([df1, df2, df3, df4, df5, df6, df7, df8, df10, df11], axis=1)
         df.reset_index(inplace=True)
         df.rename(columns={'index':'id'}, inplace=True)
         
@@ -723,6 +723,17 @@ class extract(object):
         ''' 整合各部分特征 '''
         ft_final = pd.merge(ft_user, ft_bucket, on='age_bucket', how='left')
         ft_final = pd.merge(ft_final, ft_other, on='id')
+        
+        # one-hot encode
+        dummies = ['age_bucket',
+                   'frequent_used_device',
+                   'most_popular_place',
+                   'least_popular_place']
+        for feature in dummies:
+            dummy_features = pd.get_dummies(ft_final[feature], prefix=feature)
+            for dummy in dummy_features:
+                ft_final[dummy] = dummy_features[dummy]
+            ft_final = ft_final.drop([feature], 1)
 #         print(ft_final.isna().any())
         
         ''' Export all features '''
@@ -733,7 +744,7 @@ class extract(object):
             if 'float' in str(value) or 'int' in str(value):
                 minValue = dataframe[index].min()
                 maxValue = dataframe[index].max()
-                dataframe[index] = dataframe[index].apply(lambda x:(x - minValue) / (maxValue - minValue))
+                dataframe[index] = dataframe[index].apply(lambda x:(x - minValue) / (maxValue - minValue) if maxValue != minValue else x)
                 
         return dataframe
     
@@ -813,11 +824,11 @@ class extract(object):
 if __name__ == '__main__':
     
     extr = extract('C:\\scnguh\\datamining\\airbnb\\all\\', 'train')
-    
+     
     extr.extract_features()
     
     extr = extract('C:\\scnguh\\datamining\\airbnb\\all\\', 'test')
-    
+     
     extr.extract_features()
     
     
