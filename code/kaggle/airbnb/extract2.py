@@ -12,8 +12,69 @@ import numpy as np
 
 
 
+raw_path = 'C:\\scnguh\\datamining\\airbnb\\all\\'
+raw_train = raw_path + 'train_clean.csv'
+raw_test = raw_path + 'test_clean.csv'
+raw_session = raw_path + 'sessions.csv'
+raw_countries = raw_path + 'countries.csv'
+raw_bucket = raw_path + 'age_gender_bkts.csv'
+
+df_train = pd.read_csv(raw_train)
+df_test = pd.read_csv(raw_test)
+df_session = pd.read_csv(raw_session, index_col=False)
+df_countries = pd.read_csv(raw_countries, index_col=False)
+df_bucket = pd.read_csv(raw_bucket, index_col=False)
+
+df_all = pd.concat([df_train, df_test])
+
+
+# Home made One Hot Encoding function
+def convert_to_binary(df, column_to_convert):
+    for feature in column_to_convert:
+        dummy_features = pd.get_dummies(df[feature], prefix=feature)
+        for dummy in dummy_features:
+            df[dummy] = dummy_features[dummy]
+        df.drop([feature], 1, inplace=True)
+
+    return df
+
+# One Hot Encoding
+columns_to_convert = ['gender',
+                      'signup_method',
+                      'signup_flow',
+                      'language',
+                      'affiliate_channel',
+                      'affiliate_provider',
+                      'first_affiliate_tracked',
+                      'signup_app',
+                      'first_device_type',
+                      'first_browser']
+
+df_all = convert_to_binary(df_all, columns_to_convert)
+
+# Add new date related fields
+df_all.date_account_created = pd.to_datetime(df_all.date_account_created)
+df_all.timestamp_first_active = pd.to_datetime(df_all.timestamp_first_active)
+df_all['day_account_created'] = df_all['date_account_created'].dt.weekday
+df_all['month_account_created'] = df_all['date_account_created'].dt.month
+df_all['quarter_account_created'] = df_all['date_account_created'].dt.quarter
+df_all['year_account_created'] = df_all['date_account_created'].dt.year
+df_all['hour_first_active'] = df_all['timestamp_first_active'].dt.hour
+df_all['day_first_active'] = df_all['timestamp_first_active'].dt.weekday
+df_all['month_first_active'] = df_all['timestamp_first_active'].dt.month
+df_all['quarter_first_active'] = df_all['timestamp_first_active'].dt.quarter
+df_all['year_first_active'] = df_all['timestamp_first_active'].dt.year
+df_all['account_created_delay'] = (df_all['date_account_created'] - df_all['timestamp_first_active']).dt.days
+
+# Drop unnecessary columns
+columns_to_drop = ['date_account_created', 'timestamp_first_active', 'country_destination']
+df_all.drop(columns_to_drop, axis=1, inplace=True)
+        
+''' 
+    Merge age bucket data 
+'''      
 def gen_age_bucket(age):
-    bucket = np.NaN
+    bucket = 'NA'
     if age >= 0 and age <= 4:
         bucket = 'A'
     elif age >= 5 and age <= 9:
@@ -59,135 +120,93 @@ def gen_age_bucket(age):
     
     return bucket
 
-def normalize(dataframe):
-    for index, value in dataframe.dtypes.iteritems():
-        if str(value) == 'float64':
-            minValue = dataframe[index].min()
-            maxValue = dataframe[index].max()
-            dataframe[index] = dataframe[index].apply(lambda x:(x - minValue) / (maxValue - minValue) if maxValue != minValue else x)
-            
-    return dataframe
+df_bucket.age_bucket = df_bucket.age_bucket.apply(lambda x:'100' if x == '100+' else x)
+df_bucket.age_bucket = df_bucket.age_bucket.apply(lambda x:x.split('-')[0])
+df_bucket.age_bucket = df_bucket.age_bucket.astype('int')
+df_bucket.age_bucket = df_bucket.age_bucket.apply(lambda x:gen_age_bucket(x))
+df_bucket.rename(columns={'age_bucket' : 'age'}, inplace=True)
 
-def preprocess_age_gender_bkts(df):
-    df.age_bucket = df.age_bucket.apply(lambda x:'100' if x == '100+' else x)
-    df.age_bucket = df.age_bucket.apply(lambda x:x.split('-')[0])
-    df.age_bucket = df.age_bucket.astype('int')
-    df.age_bucket = df.age_bucket.apply(lambda x:gen_age_bucket(x))
-    return df
+df_all.age = df_all.age.apply(lambda x : gen_age_bucket(x))
 
-data_dir = 'C:\\scnguh\\datamining\\airbnb\\all\\'
+# Country population
+bkt = df_bucket.groupby(['age', 'country_destination'], as_index=False).agg({'population_in_thousands' : 'sum'})
+bkt.reset_index(inplace=True, drop=True)
+bkt = bkt.pivot('age', 'country_destination', 'population_in_thousands')
+bkt.reset_index(inplace=True)
+for index, value in bkt.dtypes.iteritems():
+    if index != 'age':
+        bkt.rename(columns={index:index + '_population'}, inplace=True)
 
-df_train = pd.read_csv(data_dir + 'train_users.csv')
-df_test = pd.read_csv(data_dir + 'test_users.csv')
-df_age_bkt = preprocess_age_gender_bkts(pd.read_csv(data_dir + 'age_gender_bkts.csv'))
-df_countries = pd.read_csv(data_dir + 'countries.csv')
-df_session = pd.read_csv(data_dir + 'sessions.csv')
+# Merge population to df_all
+df_all = pd.merge(df_all, bkt, on='age', how='left')
+
+# Gender population
+bkt = df_bucket.groupby(['age', 'gender'], as_index=False).agg({'population_in_thousands' : 'sum'})
+bkt.reset_index(inplace=True, drop=True)
+bkt = bkt.pivot('age', 'gender', 'population_in_thousands')
+bkt.reset_index(inplace=True)
+for index, value in bkt.dtypes.iteritems():
+    if index != 'age':
+        bkt.rename(columns={index:index + '_population'}, inplace=True)
+
+# Merge population to df_all
+df_all = pd.merge(df_all, bkt, on='age', how='left')
+df_all = convert_to_binary(df_all, ['age'])
+df_all.fillna(-1, inplace=True)
 
 
 
-''' Merge train and test data '''
-test_size = len(df_test)
-df_head = pd.concat([df_train, df_test])
-df_head.date_account_created = pd.to_datetime(df_head.date_account_created)
-df_head.date_first_booking = pd.to_datetime(df_head.date_first_booking)
-df_head.signup_flow = df_head.signup_flow.astype('str')
-df_head.timestamp_first_active = df_head.timestamp_first_active.astype('str')
-df_head.timestamp_first_active = df_head.timestamp_first_active.apply(lambda x:datetime.datetime.strptime(x, '%Y%m%d%H%M%S').date())
-df_head.timestamp_first_active = pd.to_datetime(df_head.timestamp_first_active)
 
-df_head.age = df_head.age.apply(lambda x : gen_age_bucket(x))
-df_head['account_created_delay'] = df_head.date_account_created - df_head.timestamp_first_active
-df_head['first_booking_delay'] = df_head.date_first_booking - df_head.timestamp_first_active
-df_head.account_created_delay = df_head.account_created_delay.apply(lambda x : float(x.days))
-df_head.first_booking_delay = df_head.first_booking_delay.apply(lambda x : float(x.days))
-df_head.drop(['date_account_created', 'date_first_booking', 'timestamp_first_active'], axis=1, inplace=True)
+'''
+    Merge session data
+'''
+# Process null value
+df_session.action.fillna('NaN', inplace=True)
+df_session.action_type.fillna('NaN', inplace=True)
+df_session.action_detail.fillna('NaN', inplace=True)
+df_session.device_type.fillna('NaN', inplace=True)
+df_session.secs_elapsed.fillna(0, inplace=True)
+df_session.rename(columns={'user_id' : 'id'}, inplace=True)
 
-# Encode nominal column with one-hot code
-for index, value in df_head.dtypes.iteritems():
-    if index not in ['id', 'country_destination', 'age']:
-        if value == 'object':
-            dummy_features = pd.get_dummies(df_head[index], prefix=index, dummy_na=True)
-            for dummy in dummy_features:
-                df_head[dummy] = dummy_features[dummy]
-            df_head.drop([index], 1, inplace=True)
-            
-''' Merge countries data '''
-dummy_features = pd.get_dummies(df_countries.destination_language, prefix='destination_language', dummy_na=True)
-for dummy in dummy_features:
-    df_countries[dummy] = dummy_features[dummy]
-df_countries.drop(['destination_language'], 1, inplace=True)
+columns_sess = ['action', 'action_type', 'action_detail', 'device_type']
+for col in columns_sess:
+    sess = df_session.groupby(['id', '%s' % col], as_index=False).agg({'secs_elapsed' : 'sum'})
+    sess = sess.pivot('id', '%s' % col, 'secs_elapsed')
+    sess.reset_index(inplace=True)
+    for index, value in sess.dtypes.iteritems():
+        if index != 'id':
+            sess.rename(columns={index:index + '_%s' % col}, inplace=True)
+    sess.fillna(-1, inplace=True)
+    df_all = pd.merge(df_all, sess, on='id', how='left')
 
-df_head = pd.merge(df_head, df_countries, on='country_destination', how='left')
+df_all.fillna(-1, inplace=True)
 
-''' Merge age bucket data '''
-df_age_bkt.rename(columns={'age_bucket' : 'age'}, inplace=True)
-df_age_bkt = df_age_bkt.groupby(['age', 'country_destination'], as_index=False).agg({'population_in_thousands' : 'sum'})
-df_age_bkt.reset_index(inplace=True, drop=True)
 
-df_head = pd.merge(df_head, df_age_bkt, on=['age', 'country_destination'], how='left')
-# One-hot age
-dummy_features = pd.get_dummies(df_head.age, prefix='age', dummy_na=True)
-for dummy in dummy_features:
-    df_head[dummy] = dummy_features[dummy]
-df_head.drop(['age'], 1, inplace=True)
 
-''' Merge session data '''
-df1 = df_session[['user_id', 'action', 'secs_elapsed']]
-df1.action.fillna('nan', inplace=True)
-df1 = df1.groupby(['user_id', 'action'], as_index=False).agg({'secs_elapsed' : 'sum'})
-df1 = df1.pivot('user_id', 'action', 'secs_elapsed')
-df1.reset_index(inplace=True)
-df1.set_index(['user_id'], inplace=True)
-for index, value in df1.dtypes.iteritems():
-    if index != 'user_id':
-        df1.rename(columns={index:'action_' + index}, inplace=True)
 
-df2 = df_session[['user_id', 'action_type', 'secs_elapsed']]
-df2.action_type.fillna('nan', inplace=True)
-df2 = df2.groupby(['user_id', 'action_type'], as_index=False).agg({'secs_elapsed' : 'sum'})
-df2 = df2.pivot('user_id', 'action_type', 'secs_elapsed')
-df2.reset_index(inplace=True)
-df2.set_index(['user_id'], inplace=True)
-for index, value in df2.dtypes.iteritems():
-    if index != 'user_id':
-        df2.rename(columns={index:'action_type_' + index}, inplace=True)
+'''
+    Normalize data
+'''
+for index, value in df_all.dtypes.iteritems():
+    if index != 'id':
+        minValue = df_all[index].min()
+        maxValue = df_all[index].max()
+        df_all[index] = df_all[index].apply(lambda x:(x - minValue) / (maxValue - minValue))
 
-df3 = df_session[['user_id', 'action_detail', 'secs_elapsed']]
-df3.action_detail.fillna('nan', inplace=True)
-df3 = df3.groupby(['user_id', 'action_detail'], as_index=False).agg({'secs_elapsed' : 'sum'})
-df3 = df3.pivot('user_id', 'action_detail', 'secs_elapsed')
-df3.reset_index(inplace=True)
-df3.set_index(['user_id'], inplace=True)
-for index, value in df3.dtypes.iteritems():
-    if index != 'user_id':
-        df3.rename(columns={index:'action_detail_' + index}, inplace=True)
 
-df4 = df_session[['user_id', 'device_type', 'secs_elapsed']]
-df4.device_type.fillna('nan', inplace=True)
-df4 = df4.groupby(['user_id', 'device_type'], as_index=False).agg({'secs_elapsed' : 'sum'})
-df4 = df4.pivot('user_id', 'device_type', 'secs_elapsed')
-df4.reset_index(inplace=True)
-df4.set_index(['user_id'], inplace=True)
-for index, value in df4.dtypes.iteritems():
-    if index != 'user_id':
-        df4.rename(columns={index:'device_type_' + index}, inplace=True)
 
-df_tail = pd.concat([df1, df2, df3, df4], axis=1)      
-df_tail.reset_index(inplace=True)
-df_tail.rename(columns={'user_id':'id'}, inplace=True)
-        
-''' Merge all features '''
-df = pd.merge(df_head, df_tail, on='id', how='left')
 
-''' Normalize data '''
-df = normalize(df)
+'''
+    Split data and save
+'''
+train = df_all[:-len(df_test)]
+test = df_all[-len(df_test):]
 
-''' Decompose data to train/test '''       
-train = df[:-test_size]
-test = df[-test_size:]
+# Add back label
+train = pd.merge(train, df_train[['id', 'country_destination']], on='id')
 
-''' Save data '''
-train.to_csv('train.csv', index=False)
-test.to_csv('test.csv', index=False)
-
+# Save data
+train.to_csv('./data/train.csv', index=False)
+test.to_csv('./data/test.csv', index=False)
+print('Save finished!')
 

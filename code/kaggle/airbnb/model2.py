@@ -12,23 +12,17 @@ from sklearn.model_selection import train_test_split
 
 
 
-train = pd.read_csv('train.csv')
-test = pd.read_csv('test.csv')
+train = pd.read_csv('./data/train.csv')
+test = pd.read_csv('./data/test.csv')
 test_id = test.id
 
-dest_key = np.array(train.country_destination)
 lbl = preprocessing.LabelEncoder() 
 lbl.fit(list(train.country_destination.values)) 
 train.country_destination = lbl.transform(list(train.country_destination.values))
-dest_value = np.array(train.country_destination)
-dest_dict = np.vstack((dest_key, dest_value)).T
-dest_dict = pd.DataFrame(dest_dict, columns=['key', 'value'])
-dest_dict.drop_duplicates(inplace=True)
-dest_dict.reset_index(inplace=True, drop=True)
 
 yTrain = np.array(train.country_destination)
 train.drop(['country_destination', 'id'], axis=1, inplace=True)
-test.drop(['country_destination', 'id'], axis=1, inplace=True)
+test.drop(['id'], axis=1, inplace=True)
 
 
 def gen_result(test_id, yhat):
@@ -66,12 +60,13 @@ params = {
 
 watchlist = [(dtrain, 'train')]
 
-bst = xgb.train(params, dtrain, num_boost_round=500, evals=watchlist)
+bst = xgb.train(params, dtrain, num_boost_round=300, evals=watchlist)
 
 # y_test_pred = bst.predict(dtest_sample)
 y_pred = bst.predict(dtest)
 result = gen_result(test_id, y_pred)
-result.to_csv('submission.csv', index=False)
+result.to_csv('./data/submission.csv', index=False)
+print('Save finished!')
 
 # print('准确率：%.4f' % (np.sum(y_test_pred == y_test) / len(y_test)))
 

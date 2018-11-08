@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 raw_path = 'C:\\scnguh\\datamining\\airbnb\\all\\'
-raw_train = raw_path + 'train_users_2.csv'
+raw_train = raw_path + 'train_users.csv'
 raw_test = raw_path + 'test_users.csv'
 raw_session = raw_path + 'sessions.csv'
 
@@ -17,47 +17,30 @@ df_raw_train = pd.read_csv(raw_train)
 df_raw_test = pd.read_csv(raw_test)
 df_raw_session = pd.read_csv(raw_session)
 
-# 合并处理train和test数据集
-df_raw = pd.concat([df_raw_train, df_raw_test])
+# Merge train/test data to process
+df_all = pd.concat([df_raw_train, df_raw_test])
 
-# 性别缺失严重
-df_raw.gender = df_raw.gender.apply(lambda x:'unknown' if x == '-unknown-' or x == 'OTHER' else x)
-# dummies_features = pd.get_dummies(df_raw.gender, prefix='gender')
-# for dummy in dummies_features:
-#     df_raw[dummy] = dummies_features[dummy]
-#     
-# df_raw.drop('gender', inplace=True, axis=1)
+df_all['date_account_created'] = pd.to_datetime(df_all['date_account_created'], format='%Y-%m-%d')
+df_all['timestamp_first_active'] = pd.to_datetime(df_all['timestamp_first_active'], format='%Y%m%d%H%M%S')
+df_all['date_account_created'].fillna(df_all.timestamp_first_active, inplace=True)
 
-# 处理age缺失值
-df_raw.age = df_raw.age.apply(lambda x:np.NaN if x > 140 else x)
-# print(df_raw.age.isnull().sum())
-# print(df_raw.age.describe())
-# print(df_raw.age.mean())
-df_raw.age.fillna(df_raw.age.mean(), inplace=True)
+df_all.drop('date_first_booking', axis=1, inplace=True)
 
-# 处理first_browser
-df_raw.first_browser = df_raw.first_browser.apply(lambda x:'unknown' if x == '-unknown-' else x)
-# print(df_raw.groupby(['first_browser'])['first_browser'].count())
+# Remove outliers function
+def remove_outliers(df, column, min_val, max_val):
+    col_values = df[column].values
+    df[column] = np.where(np.logical_or(col_values <= min_val, col_values >= max_val), np.NaN, col_values)
+    return df
 
-# 处理session数据集
-# print(df_raw_session.groupby(['action_type'])['action_type'].count())
-df_raw_session.secs_elapsed.fillna(0, inplace=True)
-df_raw_session.action = df_raw_session.action.apply(lambda x:'unknown' if x == '-unknown-' else x)
-df_raw_session.action.fillna('unknown', inplace=True)
-df_raw_session.action_type = df_raw_session.action_type.apply(lambda x:'unknown' if x == '-unknown-' else x)
-df_raw_session.action_type.fillna('other', inplace=True)
-df_raw_session.action_detail = df_raw_session.action_detail.apply(lambda x:'unknown' if x == '-unknown-' else x)
-df_raw_session.action_detail.fillna('other', inplace=True)
-df_raw_session.device_type = df_raw_session.device_type.apply(lambda x:'unknown' if x == '-unknown-' else x)
+# Fixing age column
+df_all = remove_outliers(df=df_all, column='age', min_val=15, max_val=90)
+df_all['age'].fillna(-1, inplace=True)
+df_all['first_affiliate_tracked'].fillna(-1, inplace=True)
 
-# 拆分数据集并保存
-train_clean = df_raw[:-len(df_raw_test)]
-test_clean = df_raw[-len(df_raw_test):]
+# Split the train/test
+train = df_all[:-len(df_raw_test)]
+test = df_all[-len(df_raw_test):]
 
-train_clean.to_csv(raw_path + 'train_users_clean.csv', index=False)
-test_clean.to_csv(raw_path + 'test_users_clean.csv', index=False)
-df_raw_session.to_csv(raw_path + 'sessions_clean.csv', index=False)
-
-
-
+train.to_csv(raw_path + 'train_clean.csv', index=False)
+test.to_csv(raw_path + 'test_clean.csv', index=False)
 
