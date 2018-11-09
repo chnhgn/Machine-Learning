@@ -9,6 +9,9 @@ import numpy as np
 from sklearn import preprocessing
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
+import lightgbm as lgb
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 
 
 
@@ -31,8 +34,11 @@ def gen_result(test_id, yhat):
     df.label = df.label.astype('int')
     df['country'] = lbl.inverse_transform(df.label)
     df.drop(['label'], axis=1, inplace=True)
-    return df
-    
+    return df 
+
+''' 
+    xgboost
+'''
     
 dtrain = xgb.DMatrix(train, label=yTrain)
 dtest = xgb.DMatrix(test)
@@ -55,7 +61,7 @@ params = {
     'silent': 1,  # 设置成1则没有运行信息输出，最好是设置为0.
     'eta': 0.007,  # 如同学习率
     'seed': 1000,
-    'nthread': 8,  # cpu 线程数
+    'nthread': 4,  # cpu 线程数
 }
 
 watchlist = [(dtrain, 'train')]
@@ -65,15 +71,31 @@ bst = xgb.train(params, dtrain, num_boost_round=300, evals=watchlist)
 # y_test_pred = bst.predict(dtest_sample)
 y_pred = bst.predict(dtest)
 result = gen_result(test_id, y_pred)
-result.to_csv('./data/submission.csv', index=False)
-print('Save finished!')
+result.to_csv('./data/submission1.csv', index=False)
+print('xgboost finished!')
 
 # print('准确率：%.4f' % (np.sum(y_test_pred == y_test) / len(y_test)))
 
 
+'''
+    logistic regression
+'''
+lr = LogisticRegression().fit(train, yTrain)
+yhat = lr.predict(test)
+result = gen_result(test_id, yhat)
+result.to_csv('./data/submission2.csv', index=False)
+print('logistic regression finished!')
     
 
-
+'''
+    random forest
+'''
+classifier = RandomForestClassifier(n_estimators=10, criterion='entropy', random_state=42)
+classifier.fit(train, yTrain)
+y_pred = classifier.predict(test)
+result = gen_result(test_id, y_pred)
+result.to_csv('./data/submission3.csv', index=False)
+print('random forest finished!')
 
 
 
