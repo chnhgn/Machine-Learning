@@ -11,7 +11,8 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import (RandomForestClassifier, AdaBoostClassifier)
+from sklearn.svm import SVC
 
 
 
@@ -96,6 +97,46 @@ y_pred = classifier.predict(test)
 result = gen_result(test_id, y_pred)
 result.to_csv('./data/submission3.csv', index=False)
 print('random forest finished!')
+
+'''
+    Ada boost
+'''
+ada_params = {
+    'n_estimators': 200,
+    'learning_rate' : 0.75
+}
+
+clf = AdaBoostClassifier(**ada_params)
+clf.fit(train, yTrain)
+y_pred = clf.predict(test)
+
+result = gen_result(test_id, y_pred)
+result.to_csv('./data/submission4.csv', index=False)
+print('adaboost finished!')
+
+# Vote for the result
+
+res1 = pd.read_csv('./data/submission1.csv')
+res2 = pd.read_csv('./data/submission2.csv')
+res3 = pd.read_csv('./data/submission3.csv')
+res4 = pd.read_csv('./data/submission4.csv')
+
+label1 = np.array(lbl.transform(list(res1.country.values))).reshape(-1, 1)
+label2 = np.array(lbl.transform(list(res2.country.values))).reshape(-1, 1)
+label3 = np.array(lbl.transform(list(res3.country.values))).reshape(-1, 1)
+label4 = np.array(lbl.transform(list(res4.country.values))).reshape(-1, 1)
+
+label_all = np.concatenate((label1, label2, label3, label4), axis=1)
+
+vote = []
+for line in label_all:
+    vote.append(np.argmax(np.bincount(line)))
+
+result = gen_result(test_id, vote)
+result.to_csv('./data/submission_vote.csv', index=False)
+print('vote finished!')
+
+
 
 
 
